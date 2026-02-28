@@ -8,7 +8,7 @@ Student-built 25 lbf pressure-fed GOX/GCH4 → LOX/LCH4 rocket engine | Jacksonv
 │   ├── P&ID_valve_table.md
 │   ├── P&ID_mermaid.png
 │   └── BOM.xlsx
-├── /CAD/                     ← Fusion 360 exports
+├── /CAD/                     ← Siemens NX exports
 ├── /Fabrication/
 ├── /Test_Stand/
 ├── /Data_Logs/
