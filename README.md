@@ -17,14 +17,14 @@ Dalton Gadapee | Jacksonville, FL | University of North Florida
 ## Folder Structure
 ```bash
 25lbf-methalox-engine/
-├── README.md                 # ← you are here
+├── README.md                
 ├── Phase0_Requirements/
 ├── Phase1_Calculations/      # NASA CEA, sizing spreadsheets
 ├── Phase2_Design/
 │   ├── P&ID_valve_table.md
 │   ├── P&ID_mermaid.png
 │   └── BOM.xlsx
-├── CAD/                      # Fusion 360 files
+├── CAD/                      # Siemens NX files
 ├── Fabrication/
 ├── Test_Stand/
 ├── Data_Logs/
