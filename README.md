@@ -4,7 +4,7 @@ Dalton Gadapee | Jacksonville, FL | University of North Florida
 
 **Goal:** Safe, self-funded 25 lbf engine for senior project + propulsion internship portfolio (SpaceX / Blue Origin).  
 
-## Project Roadmap (we are in Phase 2)
+## Project Roadmap
 - Phase 0: Requirements ✅  
 - Phase 1: Theory & Sizing  
 - **Phase 2: Detailed Design ← YOU ARE HERE**  
