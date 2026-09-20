@@ -18,7 +18,7 @@ Stretch goal: LOX/LCH4 variant fired (Phase 7, follow-on program).
 ## Project Roadmap
 - Phase 0: Requirements — in progress (plan committed; requirements docs not yet committed)
 - Phase 1: Theory & Sizing
-- **Phase 2: Detailed Design ← YOU ARE HERE**
+- Phase 2: Detailed Design
 - Phase 3: Fabrication
 - Phase 4: Test Stand & Plumbing
 - Phase 5: Incremental Testing (GOX/GCH4 first!)
