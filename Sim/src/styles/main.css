@@ -1,0 +1,59 @@
+/* Stand Sim. Palette from src/scene/manim.js (M); quantity colours from Q there. */
+:root {
+  --bg: #0b0c0e;
+  --panel: rgba(20, 22, 26, 0.88);
+  --line: #2a2d33;
+  --text: #ece6e2;
+  --muted: #9a9591;
+  --ox: #58c4dd;
+  --fuel: #f0ac5f;
+  --n2: #8fa88a;
+  --hot: #fc6255;
+  --next: #f4d345;
+  --ok: #83c167;
+  --warn: #f0ac5f;
+  --bad: #fc6255;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
+#app { position: fixed; inset: 0; overflow: hidden; }
+#c { display: block; width: 100%; height: 100%; }
+.hud { position: absolute; z-index: 2; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; backdrop-filter: blur(6px); }
+.brand { top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.brand h1 { margin: 0; font-size: 17px; letter-spacing: 0.02em; }
+.brand .subtitle { margin: 0; color: var(--muted); font-size: 12px; }
+button { font: inherit; color: inherit; background: #1c1f24; border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.active { border-color: var(--text); }
+.btn.ghost { background: transparent; }
+.mode-switch { display: inline-flex; gap: 4px; }
+.lab-tabs { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.tab-soon { color: var(--muted); font-size: 12px; padding: 5px 8px; border: 1px dashed var(--line); border-radius: 7px; }
+.tab-soon small { opacity: 0.7; }
+.setup { top: 150px; left: 12px; width: 260px; max-height: 50vh; overflow: auto; }
+.setup:empty { display: none; }
+.eq-panel { top: 150px; right: 12px; width: 320px; max-height: calc(100vh - 290px); overflow: auto; }
+.law-row { margin: 4px 0; }
+.eq-live .row { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 13px; }
+.coach h3 { margin: 10px 0 4px; font-size: 14px; }
+.coach p { margin: 4px 0; color: var(--muted); }
+.lab-status { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 999px; margin-bottom: 6px; border: 1px solid; }
+.lab-status.placeholder, .lab-status.uncalibrated { color: var(--warn); border-color: var(--warn); }
+.lab-status.calibrated { color: var(--ok); border-color: var(--ok); }
+.readout-bar { left: 12px; right: 12px; bottom: 12px; }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.cell .label { color: var(--muted); font-size: 12px; }
+.cell .value { font-family: var(--mono); font-size: 15px; }
+.hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.scene-label { font: 12px var(--mono); color: var(--text); white-space: nowrap; }
+.scene-label.ox { color: var(--ox); }
+.scene-label.fuel { color: var(--fuel); }
+@media (max-width: 720px) {
+  .brand { left: 8px; right: 8px; }
+  .setup { display: none; }
+  .eq-panel { left: 8px; right: 8px; width: auto; top: auto; bottom: 150px; max-height: 32vh; }
+  .readout-bar { left: 8px; right: 8px; bottom: 8px; }
+}

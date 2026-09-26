@@ -1,0 +1,24 @@
+{
+  "name": "stand-sim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Operable simulation of the 25 lbf GOX/GCH4 test stand and feed system",
+  "license": "MIT",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node scripts/check-headless.mjs && node src/physics/selftest.js && node scripts/shell-check.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "live": "node scripts/live.mjs"
+  },
+  "dependencies": {
+    "katex": "^0.16.47",
+    "three": "^0.172.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

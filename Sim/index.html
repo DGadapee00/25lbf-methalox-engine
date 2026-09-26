@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Operable simulation of the 25 lbf GOX/GCH4 engine test stand: feed system, valves, sequence and aborts." />
+    <title>Stand Sim — 25 lbf methalox</title>
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="c" role="img" aria-label="Stand schematic"></canvas>
+
+      <header class="hud panel brand">
+        <div class="brand-text">
+          <h1>Stand Sim</h1>
+          <p class="subtitle">25 lbf GOX/GCH₄ · test stand and feed system</p>
+        </div>
+        <div class="mode-switch" role="tablist" aria-label="Mode">
+          <button type="button" role="tab" class="active" aria-selected="true">Operate</button>
+          <button type="button" role="tab" aria-selected="false" disabled title="Arrives in M3">Sequence</button>
+          <button type="button" role="tab" aria-selected="false" disabled title="Arrives in M6">Test</button>
+        </div>
+        <button type="button" class="btn ghost" id="units-toggle" title="Switch psia/lbf ↔ kPa/N">US units</button>
+        <nav class="lab-tabs" id="lab-tabs" role="tablist" aria-label="Labs"></nav>
+      </header>
+
+      <aside class="hud panel setup" id="setup" aria-label="Setup"></aside>
+
+      <aside class="hud panel eq-panel" aria-label="Laws and live values">
+        <div class="lab-status" id="lab-status"></div>
+        <div class="law" id="law"></div>
+        <div class="eq-live" id="eq-live"></div>
+        <div class="coach" id="coach"></div>
+      </aside>
+
+      <footer class="hud panel readout-bar">
+        <div class="readout" id="readout"></div>
+        <p class="hint" id="hint"></p>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

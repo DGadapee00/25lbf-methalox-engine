@@ -1,0 +1,46 @@
+/**
+ * What the symbols on screen mean, and what they are measured in (brief §3.1, V-11).
+ *
+ * `unit` is the SI unit the physics works in; `display` names the format.js helper that shows it,
+ * which is where the psia / lbf / g/s toggle lives. The base-SI expansion is computed from `unit`
+ * through parseUnit(), so it cannot drift from the dimension engine.
+ *
+ * The registry grows with the labs: a quantity no lab shows fails the self-test, since nobody
+ * would notice it was wrong. M1 adds physics but no labs, so its quantities arrive with M2.
+ */
+import { parseUnit } from '../physics/units.js';
+
+export const QUANTITIES = {
+  p: { sym: 'p', name: 'Pressure (absolute)', unit: 'Pa', display: 'fmtP', from: 'p = \\dfrac{mRT}{V}' },
+  T: { sym: 'T', name: 'Temperature', unit: 'K', display: 'fmtT', from: '' },
+  mdot: { sym: '\\mdot', name: 'Mass flow rate', unit: 'kg/s', display: 'fmtMdot', from: '\\mdot = \\dfrac{dm}{dt}' },
+  F: { sym: 'F', name: 'Thrust', unit: 'N', display: 'fmtF', from: 'F = C_F P_c A_t' },
+};
+
+/** Which quantities each lab puts on screen, most important first. */
+export const LAB_UNITS = {
+  scaffold: ['p', 'T', 'mdot', 'F'],
+};
+
+const BASE = ['kg', 'm', 's', 'K'];
+const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+const sup = (n) => String(n).split('').map((ch) => SUP[ch] ?? ch).join('');
+
+/** Expand a unit string to base SI: 'Pa' → 'kg·m⁻¹·s⁻²'. '' when it does not parse. */
+export function baseUnits(unit) {
+  let dim;
+  try {
+    dim = parseUnit(unit);
+  } catch {
+    return '';
+  }
+  const parts = dim.map((e, i) => (e === 0 ? null : e === 1 ? BASE[i] : BASE[i] + sup(e))).filter(Boolean);
+  return parts.length ? parts.join('·') : 'dimensionless';
+}
+
+/** The quantities for a lab, resolved and ready to render. */
+export function unitsForLab(labId) {
+  return (LAB_UNITS[labId] || [])
+    .map((id) => (QUANTITIES[id] ? { id, ...QUANTITIES[id], base: baseUnits(QUANTITIES[id].unit) } : null))
+    .filter(Boolean);
+}

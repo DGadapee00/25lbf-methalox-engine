@@ -1,0 +1,8 @@
+{
+  "_note": "Regression baseline for scripts/smoke.mjs: key → { value (SI), tol (relative) }. Update only on a deliberate change, in its own commit, saying why.",
+  "scaffold": {
+    "Pc": { "value": 1723689.3232920001, "tol": 1e-9 },
+    "F": { "value": 111.2, "tol": 1e-9 },
+    "mdot": { "value": 0.0527, "tol": 1e-9 }
+  }
+}
