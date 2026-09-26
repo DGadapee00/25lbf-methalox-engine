@@ -200,6 +200,14 @@
         "note": "main valve to injector, as built"
       }
     },
+    "injector": {
+      "Cd": {
+        "value": 0.77,
+        "unit": "1",
+        "source": "brief V-9 hand check (4 × ⌀1.4 mm GOX at 480 psia, 293 K → 38.8 g/s, PROJECT_PLAN §2.2–2.3); one value for every injector circuit; uncalibrated until Phase 5 step 2/3",
+        "uncalibrated": true
+      }
+    },
     "INJ-OX-01": {
       "n": {
         "value": 4,
@@ -210,12 +218,18 @@
         "value": 1.4,
         "unit": "mm",
         "source": "PROJECT_PLAN §2.3"
-      },
-      "Cd": {
-        "value": 0.78,
+      }
+    },
+    "INJ-FU-01": {
+      "n": {
+        "value": 4,
         "unit": "1",
-        "source": "brief §4.3 default; uncalibrated until Phase 5 step 2/3",
-        "uncalibrated": true
+        "source": "PROJECT_PLAN §2.3"
+      },
+      "d": {
+        "value": 1.0,
+        "unit": "mm",
+        "source": "PROJECT_PLAN §2.3"
       }
     },
     "chamber": {
