@@ -81,12 +81,12 @@ export function gn2Coldflow(c = components()) {
     },
     // P&ID layout. Ambient is drawn once per edge that reaches it, at that edge's `vent` point.
     layout: {
-      nodes: { bottle: [-7.2, 0], hp: [-5.0, 0], manifold: [-1.6, 0], line: [1.8, 0], chamber: [4.6, 0] },
-      vents: { 'PSV-OX-01': [-1.6, 2.4], 'SV-OX-02': [-1.6, -2.4], 'THROAT-01': [6.8, 0] },
+      nodes: { bottle: [-5.8, 0], hp: [-4.0, 0], manifold: [-1.2, 0], line: [1.5, 0], chamber: [3.7, 0] },
+      vents: { 'PSV-OX-01': [-1.2, 2.3], 'SV-OX-02': [-1.2, -2.3], 'THROAT-01': [5.6, 0] },
     },
     sensors: [
-      { tag: 'PT-OX-01', node: 'bottle', offset: [0, 1.5] },
-      { tag: 'PT-OX-02', node: 'manifold', offset: [1.0, 1.2] },
+      { tag: 'PT-OX-01', node: 'bottle', offset: [0.9, 1.7] },
+      { tag: 'PT-OX-02', node: 'manifold', offset: [0.9, 1.2] },
       { tag: 'PT-OX-03', node: 'line', offset: [0, 1.2] },
       { tag: 'PT-CH-01', node: 'chamber', offset: [0, 1.4] },
     ],
