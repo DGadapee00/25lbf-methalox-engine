@@ -4,6 +4,8 @@
     "V-1 isothermal blowdown": 60,
     "V-2 adiabatic blowdown": 69,
     "adiabatic blowdown, NASA-7 N2": 35,
+    "driver batch": 264,
+    "driver live, 60 chunks/s": 290,
     "V-4 cold-flow stand sequence": 11649,
     "V-5 two-tank equalization": 2412,
     "V-6 relief, feed then vent": 7779,
@@ -23,6 +25,8 @@
     "fails-open peak PCV-OX-01, τ_lift 2 ms": 3114,
     "fails-open peak PCV-FU-01, τ_lift 2 ms": 3108,
     "fails-open peak PCV-OX-01, τ_lift 8 ms": 3113,
-    "fails-open peak PCV-FU-01, τ_lift 8 ms": 3107
+    "fails-open peak PCV-FU-01, τ_lift 8 ms": 3107,
+    "stand GN2 cold-flow sequence": 54908,
+    "stand fails-open peak": 3016
   }
 }
