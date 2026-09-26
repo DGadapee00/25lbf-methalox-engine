@@ -74,7 +74,21 @@ fixtures**, chosen to exercise the solver. They aren't stand defaults and must n
 into one. The values in that file taken from PROJECT_PLAN (injector geometry, throat, chamber
 volume, 480 psia manifold, 250 psia P_c) cite their section on the line.
 
-## Component defaults
+## Component defaults (`data/components.json`)
 
-None yet. They arrive with the component labs (M2) and cite a datasheet or are labelled as
-placeholders on screen.
+The GN₂ cold-flow stand's defaults, in datasheet units, loaded and converted to SI by
+`src/data/components.js`. **Every value has either a `source` or `placeholder: true` with its
+tracking issue, and the loader refuses anything else.**
+
+- **Sourced:**
+  - injector 4× ⌀1.4 mm, throat ⌀8.0 mm, chamber ≈45 cm³ (PROJECT_PLAN §2.2–2.3);
+  - regulator set point 480 psia at 38.8 g/s rated flow (PROJECT_PLAN §2.2–2.3);
+  - relief accumulation 10% (decision 2026-09-26);
+  - standard atmosphere.
+- **Uncalibrated:** injector C_d 0.78 (brief §4.3 default) until Phase 5 step 2/3.
+- **Placeholders (issue #6):** 25 values, covering bottle volume and fill, valve C_v and timing,
+  regulator C_v / droop / τ, relief set / blowdown / τ_lift / sizing margin, manifold, line and
+  HP-line volumes, throat C_d, ambient temperature. The stand's Setup panel lists them.
+
+The relief C_dA is not a free number: it is the build-time rule's minimum times the sizing
+margin, so it follows the regulator and set pressure.

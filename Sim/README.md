@@ -11,8 +11,9 @@ test step.** Until a component has been calibrated against measured data, it is 
 
 | Milestone | State |
 |---|---|
-| M0 Scaffold | done: app shell, one placeholder lab, tests, CI, Pages deploy |
+| M0 Scaffold | done: app shell, tests, CI, Pages deploy |
 | M1 Component library + network solver (headless) | done: V-1 to V-6 (plus V-3, V-9, regulator settling); see [docs/solver.md](docs/solver.md) |
+| M2 Component labs + P&ID view, GN₂ cold-flow stand in Operate mode | this: Blowdown, Orifice, Regulator labs; live stand in a Web Worker |
 | M2–M7 | see the brief's §6 |
 
 ## Run it
@@ -37,21 +38,22 @@ Sim/
 ├── index.html, vite.config.js, package.json
 ├── src/
 │   ├── main.js            # app shell: router, lab mount, panels, render loop
-│   ├── labs/              # defineLab() contract, loader, one file per lab
-│   ├── engine/router.js   # #/lab/<id>?case=…, #/stand/<id>
-│   ├── scene/             # three.js: renderer, manim.js palette and line primitives
-│   ├── ui/                # KaTeX helpers (shared.js), number/units formatting (format.js)
-│   ├── data/              # catalog (what labs exist), quantities (units registry)
+│   ├── labs/              # defineLab() contract, loader; blowdown, orifice, regulator, stand
+│   ├── engine/            # router (#/lab/<id>, #/stand/<id>); physics Web Worker and its client
+│   ├── scene/             # three.js: renderer, palette, P&ID view (pid.js)
+│   ├── ui/                # KaTeX helpers, units formatting, plots, predict-first cards
+│   ├── data/              # catalog, units registry, S-2 tags, component loader, stands/
 │   └── physics/           # pure and headless: no DOM, no three.js, no KaTeX
 │       ├── gas.js         # ideal-gas mixtures: NASA-7 or calorically perfect
 │       ├── elements/      # orifice, valve, regulator (check/relief live in network.js)
 │       ├── network.js     # netlist → state vector, RHS, events, readouts
 │       ├── integrate/     # Dormand–Prince 5(4) with dense output
-│       ├── simulate.js    # driver: breakpoints, state events, sampling, stats
+│       ├── simulate.js    # driver: breakpoints, state events, sampling, stats; steppable runs
+│       ├── analysis.js    # derived readouts: fails-open peak manifold pressure
 │       └── selftest/      # npm test suites, one per topic
 ├── scripts/               # smoke, headless guard, shell checks, live
 ├── tools/                 # offline generators for data/ (Python)
-├── data/                  # generated JSON tables, each with source/generator/date/commit
+├── data/                  # JSON tables (thermo) and stand defaults (components.json), each sourced
 └── docs/                  # solver.md and other design notes
 ```
 

@@ -272,6 +272,20 @@ flow:
 The self-test asserts all three, so they stay visible. The target margin and the fix remain
 S-3 (an ADR); the M6 sweep will map manifold pressure vs P_c vs margin.
 
+## 6a. The live stand (M2)
+
+Operate mode runs the GN₂ stand in a Web Worker (`engine/simWorker.js`) through the steppable
+driver (`createRun`). The main thread asks for dt × time scale of sim time each frame, one
+request in flight at a time, so a slow machine runs slower than real time rather than queueing
+work. The self-test checks that 60 chunks per second with a live command reproduce a batch run.
+
+**Stiffness again, and why the HP line is 20 cm³.** The HP line between the bottle isolation valve
+and the regulator was first a 2 cm³ placeholder. Next to a 50 L bottle through an open C_v 1 hand
+valve it was the stiffest node on the stand: 233 000 steps for 7 s of cold flow, 0.67× real time.
+At 20 cm³ (about 1 m of 1/4-in tube, still a placeholder) the same sequence takes 55 000 steps,
+about 5× faster than real time. The as-built volume replaces it. If that comes out much smaller,
+this is where the Rosenbrock integrator (M3) earns its place.
+
 ## 7. Known limits (M1–M2)
 
 - Ideal gas. No Z(p,T) (v1.1), no Joule–Thomson cooling across the regulator (M4).
