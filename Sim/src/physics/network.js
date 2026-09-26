@@ -335,7 +335,8 @@ export function compileNetwork(net, gas) {
 /**
  * Relief sizing, checked whenever a network is built. For every regulator, the relief valves on
  * its outlet node must together pass the regulator's fails-open flow — C_dA_max from the supply
- * as filled (its highest pressure) — at full lift, which each relief reaches at set +
+ * as filled (its highest pressure: the larger of the supply node's starting pressure and the
+ * regulator's pSupplyRef) — at full lift, which each relief reaches at set +
  * accumulation (elements/relief.js). So a failed-open regulator cannot push the manifold past
  * set + accumulation. It assumes everything downstream is shut (a closed main valve is exactly
  * when a dead-headed manifold is most exposed). Gas properties are the supply's as
@@ -352,7 +353,10 @@ export function checkReliefs(net, nodes, edges, stateOf) {
   }
   const results = [];
   for (const reg of edges.filter((e) => e.type === 'regulator')) {
-    const sup = stateOf(nodes[reg.ia]);
+    // The supply as filled: the regulator's reference supply pressure when it is higher than the
+    // supply node's starting pressure (an isolation valve shut at t = 0 leaves the node low).
+    const sup0 = stateOf(nodes[reg.ia]);
+    const sup = { ...sup0, p: Math.max(sup0.p, reg.derived.pSupplyRef) };
     const reliefs = edges.filter((e) => e.type === 'relief' && e.ia === reg.ib);
     let capacity = 0;
     let needCdA = Infinity;

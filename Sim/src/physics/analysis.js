@@ -9,9 +9,11 @@
  *
  * The scenario, per regulator:
  * - the regulator is failed open from t = 0 (fault 'open');
- * - every actuated valve starts and stays shut, so the outlet node is dead-headed and only its
- *   reliefs can pass the flow (the same assumption as the build-time relief rule);
- * - the outlet node starts at the regulator's set point, the supply as filled.
+ * - every actuated valve (S-2 letters SV/XV) starts and stays shut, so the outlet node is
+ *   dead-headed and only its reliefs can pass the flow (the build-time relief rule's assumption);
+ * - hand valves (HV) are open: the stand is pressurized, bottle isolation open;
+ * - the supply node is at the regulator's pSupplyRef (the bottle as filled), and the outlet node
+ *   starts at the set point.
  * It runs until the relief lift and the pressure have settled, and reports:
  *   peak     highest pressure reached (Pa), from the driver's in-step peak tracking
  *   settled  pressure at the end (Pa): what the relief holds once its lift has caught up
@@ -22,6 +24,7 @@
  */
 import { simulate } from './simulate.js';
 import { compileNetwork } from './network.js';
+import { parseTag } from '../data/tags.js';
 
 export function failsOpenPeaks(net, gas, { tEnd } = {}) {
   const sys = compileNetwork(net, gas); // validates, including the relief rule
@@ -30,10 +33,14 @@ export function failsOpenPeaks(net, gas, { tEnd } = {}) {
     const reliefs = sys.edges.filter((e) => e.type === 'relief' && e.a === reg.b);
     const variant = {
       ...net,
-      nodes: net.nodes.map((n) => (n.id === reg.b ? { ...n, p: reg.pSet } : n)),
+      nodes: net.nodes.map((n) => {
+        if (n.id === reg.b) return { ...n, p: reg.pSet };
+        if (n.id === reg.a && n.kind === 'volume') return { ...n, p: Math.max(n.p, reg.derived.pSupplyRef) };
+        return n;
+      }),
       edges: net.edges.map((e) => {
         if (e.id === reg.id) return { ...e, fault: 'open' };
-        if (e.type === 'valve') return { ...e, x0: 0 };
+        if (e.type === 'valve') return { ...e, x0: parseTag(e.tag ?? e.id)?.letters === 'HV' ? 1 : 0 };
         return e;
       }),
     };
