@@ -20,7 +20,10 @@
  *     regulator  pSet (Pa, flowing outlet pressure at rated flow), mdotRated (kg/s), droop or
  *                pLockup (Pa), CdAmax (m²), tau (s), spe, pSupplyRef (Pa), z0, fault
  *                a = supply side, b = outlet (the pressure it regulates); see elements/regulator.js
-
+ *
+ *   checks: optional. Every regulated node must carry relief capacity for its regulator failing
+ *     open (checkReliefs below); a network may opt out only with
+ *     `checks: { reliefOnRegulatedNodes: false, reason: '…' }`, and the reason is required.
  *
  * The state vector y (Float64Array) is laid out node by node: for a volume or ambient node,
  * [m_1 … m_ns, U] (kg, J); then one poppet opening z per regulator. Discrete state — valve motion,
@@ -32,7 +35,7 @@
  * V-5 hold to round-off: they test that the bookkeeping has no leaks, which is their point.
  */
 import { massFractions, massesFromPTY, stateFromMasses, stateFromPTY } from './gas.js';
-import { orificeFlow } from './elements/orifice.js';
+import { orificeFlow, regFlux } from './elements/orifice.js';
 import { valveInit, valvePosition, valveCommand, valvePhi } from './elements/valve.js';
 import { regulatorDerive, regulatorCmd, regulatorCdA } from './elements/regulator.js';
 
@@ -71,6 +74,7 @@ export function compileNetwork(net, gas) {
     }
   }
   const nState = off;
+  checkReliefs(net, nodes, edges, initialNodeState);
 
   // Discrete state, one entry per edge.
   const disc = edges.map((e) => {
@@ -308,3 +312,55 @@ export function compileNetwork(net, gas) {
   };
 }
 
+/**
+ * Relief sizing, checked whenever a network is built. For every regulator, the relief valves on
+ * its outlet node must together pass the regulator's fails-open flow — C_dA_max from the supply
+ * as filled (its highest pressure) — at each relief's own set pressure. That is conservative: it
+ * allows no accumulation above set, and assumes everything downstream is shut (a closed main valve
+ * is exactly when a dead-headed manifold is most exposed). Gas properties are the supply's as
+ * filled; with no Joule–Thomson model yet the manifold gas is at supply temperature.
+ *
+ * Returns the per-regulator results; throws, naming the regulator and the C_dA it would need,
+ * unless the network opts out with a stated reason.
+ */
+export function checkReliefs(net, nodes, edges, stateOf) {
+  const opt = net.checks || {};
+  if (opt.reliefOnRegulatedNodes === false) {
+    if (!opt.reason) throw new Error('checks.reliefOnRegulatedNodes: false needs a stated reason');
+    return [];
+  }
+  const results = [];
+  for (const reg of edges.filter((e) => e.type === 'regulator')) {
+    const sup = stateOf(nodes[reg.ia]);
+    const reliefs = edges.filter((e) => e.type === 'relief' && e.ia === reg.ib);
+    let capacity = 0;
+    let needCdA = Infinity;
+    for (const rv of reliefs) {
+      const pDown = nodes[rv.ib].p;
+      const pOpen = pDown + rv.set;
+      const failOpen = reg.CdAmax * regFlux(sup.p, sup.T, sup.gamma, sup.R, pOpen).flux;
+      const perCdA = regFlux(pOpen, sup.T, sup.gamma, sup.R, pDown).flux;
+      capacity += rv.CdA * perCdA;
+      needCdA = Math.min(needCdA, failOpen / perCdA);
+      results.push({ regulator: reg.id, relief: rv.id, failOpen, pOpen });
+    }
+    const worst = results.filter((r) => r.regulator === reg.id).reduce((m, r) => Math.max(m, r.failOpen), 0);
+    const where = `regulator ${reg.id} → node ${reg.b}`;
+    if (!reliefs.length) {
+      throw new Error(`${where}: no relief on the regulated node. Every regulated manifold needs one sized for the regulator failing open (or opt out with checks.reason).`);
+    }
+    if (capacity < worst) {
+      throw new Error(`${where}: relief capacity ${(capacity * 1e3).toFixed(1)} g/s at set is below the fails-open flow ${(worst * 1e3).toFixed(1)} g/s; needs relief C_dA ≥ ${needCdA.toExponential(3)} m²`);
+    }
+  }
+  return results;
+}
+
+/**
+ * Smallest relief C_dA (m²) that passes a regulator's fails-open flow at the relief's set Δp,
+ * relieving from a node to back pressure pDown (Pa). For sizing fixtures and stand defaults.
+ */
+export function reliefCdAForFailOpen(regCdAmax, supply, set, pDown) {
+  const pOpen = pDown + set;
+  return (regCdAmax * regFlux(supply.p, supply.T, supply.gamma, supply.R, pOpen).flux) / regFlux(pOpen, supply.T, supply.gamma, supply.R, pDown).flux;
+}
