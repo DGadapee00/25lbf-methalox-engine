@@ -1,0 +1,84 @@
+# Stand simulator (Sim/): test and build on every PR and push that touches it; publish to GitHub
+# Pages on main.
+#
+# Deploying does nothing until Pages is switched on for the repository:
+# Settings → Pages → Build and deployment → Source: GitHub Actions. Until then the deploy job fails
+# with "Pages is not enabled"; the test job is unaffected. See Sim/DEPLOY.md.
+
+name: Sim
+
+on:
+  push:
+    branches: [main]
+    paths: ['Sim/**', '.github/workflows/sim.yml']
+  pull_request:
+    paths: ['Sim/**', '.github/workflows/sim.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: Sim
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # vite.config.js stamps the commit subject into /version.json; a shallow clone has it.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Sim/package-lock.json
+
+      - run: npm ci
+
+      # The physics self-test. A build that fails it would publish wrong physics, which is worse
+      # than publishing nothing.
+      - run: npm test
+
+      - run: npm run build
+
+      # Playwright is deliberately not a dependency (it is large, and only the smoke test wants it).
+      - name: Install Playwright for the smoke test
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - run: npm run smoke
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-screenshots
+          path: Sim/scripts/output/
+          if-no-files-found: ignore
+
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: Sim/dist
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
