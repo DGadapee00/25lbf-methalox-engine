@@ -16,7 +16,8 @@
  *     orifice    CdA (m²)
  *     valve      CdAmax (m²), tOpen, tClose (s), delay (s, default 0), x0 (0..1), curve
  *     check      CdA (m²), crack, reseat (Pa, Δp = p_a − p_b), leakCdA (m², default 0), open0
- *     relief     CdA (m²), set (Pa, Δp = p_a − p_b), blowdown (fraction of set), open0
+ *     relief     CdA (m², full lift), set (Pa, Δp = p_a − p_b), accumulation, blowdown (fractions
+ *                of set), tauLift (s), L0; proportional lift, see elements/relief.js
  *     regulator  pSet (Pa, flowing outlet pressure at rated flow), mdotRated (kg/s), droop or
  *                pLockup (Pa), CdAmax (m²), tau (s), spe, pSupplyRef (Pa), z0, fault
  *                a = supply side, b = outlet (the pressure it regulates); see elements/regulator.js
@@ -26,8 +27,9 @@
  *     `checks: { reliefOnRegulatedNodes: false, reason: '…' }`, and the reason is required.
  *
  * The state vector y (Float64Array) is laid out node by node: for a volume or ambient node,
- * [m_1 … m_ns, U] (kg, J); then one poppet opening z per regulator. Discrete state — valve motion,
- * check/relief open flags, faults — lives in `sys.disc` and changes only at events.
+ * [m_1 … m_ns, U] (kg, J); then one poppet opening z per regulator and one lift L per relief.
+ * Discrete state — valve motion, check-valve open flags, faults — lives in `sys.disc` and changes
+ * only at events.
  *
  * Every edge flow is subtracted from one node and added to another with the same species split
  * and the same enthalpy, and ambient nodes accumulate their inflow, so Σ mass and Σ energy are
@@ -38,6 +40,7 @@ import { massFractions, massesFromPTY, stateFromMasses, stateFromPTY } from './g
 import { orificeFlow, regFlux } from './elements/orifice.js';
 import { valveInit, valvePosition, valveCommand, valvePhi } from './elements/valve.js';
 import { regulatorDerive, regulatorCmd, regulatorCdA } from './elements/regulator.js';
+import { reliefCurves, reliefTarget, reliefValidate, ACCUMULATION_DEFAULT } from './elements/relief.js';
 
 const TYPES = new Set(['orifice', 'valve', 'check', 'relief', 'regulator']);
 
@@ -62,7 +65,10 @@ export function compileNetwork(net, gas) {
   for (const e of edges) {
     // Hysteresis must be positive or the device chatters without end.
     if (e.type === 'check' && !(e.crack > e.reseat)) throw new Error(`check ${e.id}: crack must exceed reseat`);
-    if (e.type === 'relief' && !(e.blowdown > 0 && e.blowdown < 1)) throw new Error(`relief ${e.id}: blowdown must be in (0, 1)`);
+    if (e.type === 'relief') {
+      reliefValidate(e);
+      e.curves = reliefCurves(e);
+    }
   }
   const edgeIdx = new Map(edges.map((e, i) => [e.id, i]));
   if (edgeIdx.size !== edges.length) throw new Error('compileNetwork: duplicate edge id');
@@ -72,6 +78,10 @@ export function compileNetwork(net, gas) {
       off += 1;
       e.derived = regulatorDerive(e, initialNodeState(nodes[e.ia]));
     }
+    if (e.type === 'relief') {
+      e.off = off;
+      off += 1;
+    }
   }
   const nState = off;
   checkReliefs(net, nodes, edges, initialNodeState);
@@ -79,7 +89,7 @@ export function compileNetwork(net, gas) {
   // Discrete state, one entry per edge.
   const disc = edges.map((e) => {
     if (e.type === 'valve') return valveInit(e);
-    if (e.type === 'check' || e.type === 'relief') return { open: !!e.open0 };
+    if (e.type === 'check') return { open: !!e.open0 };
     if (e.type === 'regulator') return { fault: e.fault ?? null, pLockup: e.derived.pLockup };
     return {};
   });
@@ -101,6 +111,7 @@ export function compileNetwork(net, gas) {
       // ambient accumulators start at zero
     }
     for (const e of edges) if (e.type === 'regulator') y[e.off] = e.z0 ?? 0;
+    for (const e of edges) if (e.type === 'relief') y[e.off] = e.L0 ?? 0;
     return y;
   }
 
@@ -136,8 +147,9 @@ export function compileNetwork(net, gas) {
       case 'valve':
         return e.CdAmax * valvePhi(e, valvePosition(d, t));
       case 'check':
-      case 'relief':
         return d.open ? e.CdA : e.leakCdA ?? 0;
+      case 'relief':
+        return Math.max(0, Math.min(1, y[e.off])) * e.CdA + (e.leakCdA ?? 0);
       case 'regulator':
         return regulatorCdA(e, y[e.off], d.fault);
     }
@@ -206,21 +218,25 @@ export function compileNetwork(net, gas) {
       const zc = regulatorCmd(e, e.derived, d.pLockup, st[e.ib].p, st[e.ia].p);
       dy[e.off] = (zc - y[e.off]) / e.tau;
     }
+    for (const e of edges) {
+      if (e.type !== 'relief') continue;
+      const L = y[e.off];
+      dy[e.off] = (reliefTarget(e, e.curves, L, st[e.ia].p - st[e.ib].p) - L) / e.tauLift;
+    }
   }
 
   /**
-   * State-event functions: one per check/relief edge. g < 0 while the current mode holds; the
+   * State-event functions: one per check-valve edge. g < 0 while the current mode holds; the
    * driver switches mode when g crosses to ≥ 0 and locates the crossing on the dense output.
    */
-  const eventEdges = edges.map((e, j) => j).filter((j) => edges[j].type === 'check' || edges[j].type === 'relief');
+  const eventEdges = edges.map((e, j) => j).filter((j) => edges[j].type === 'check');
   function events(t, y, out) {
     const st = nodeStates(y);
     eventEdges.forEach((j, k) => {
       const e = edges[j];
       const dp = st[e.ia].p - st[e.ib].p;
       const open = disc[j].open;
-      const [crack, reseat] = e.type === 'check' ? [e.crack, e.reseat] : [e.set, e.set * (1 - e.blowdown)];
-      out[k] = open ? reseat - dp : dp - crack;
+      out[k] = open ? e.reseat - dp : dp - e.crack;
     });
     return out;
   }
@@ -260,7 +276,11 @@ export function compileNetwork(net, gas) {
     edges.forEach((e, j) => {
       const r = { ...flows[j] };
       if (e.type === 'valve') r.x = valvePosition(disc[j], t);
-      if (e.type === 'check' || e.type === 'relief') r.open = disc[j].open;
+      if (e.type === 'check') r.open = disc[j].open;
+      if (e.type === 'relief') {
+        r.lift = Math.max(0, Math.min(1, y[e.off]));
+        r.open = r.lift > 0;
+      }
       if (e.type === 'regulator') {
         r.z = y[e.off];
         r.pLockup = disc[j].pLockup;
@@ -315,9 +335,10 @@ export function compileNetwork(net, gas) {
 /**
  * Relief sizing, checked whenever a network is built. For every regulator, the relief valves on
  * its outlet node must together pass the regulator's fails-open flow — C_dA_max from the supply
- * as filled (its highest pressure) — at each relief's own set pressure. That is conservative: it
- * allows no accumulation above set, and assumes everything downstream is shut (a closed main valve
- * is exactly when a dead-headed manifold is most exposed). Gas properties are the supply's as
+ * as filled (its highest pressure) — at full lift, which each relief reaches at set +
+ * accumulation (elements/relief.js). So a failed-open regulator cannot push the manifold past
+ * set + accumulation. It assumes everything downstream is shut (a closed main valve is exactly
+ * when a dead-headed manifold is most exposed). Gas properties are the supply's as
  * filled; with no Joule–Thomson model yet the manifold gas is at supply temperature.
  *
  * Returns the per-regulator results; throws, naming the regulator and the C_dA it would need,
@@ -337,7 +358,7 @@ export function checkReliefs(net, nodes, edges, stateOf) {
     let needCdA = Infinity;
     for (const rv of reliefs) {
       const pDown = nodes[rv.ib].p;
-      const pOpen = pDown + rv.set;
+      const pOpen = pDown + rv.curves.pFull;
       const failOpen = reg.CdAmax * regFlux(sup.p, sup.T, sup.gamma, sup.R, pOpen).flux;
       const perCdA = regFlux(pOpen, sup.T, sup.gamma, sup.R, pDown).flux;
       capacity += rv.CdA * perCdA;
@@ -350,17 +371,18 @@ export function checkReliefs(net, nodes, edges, stateOf) {
       throw new Error(`${where}: no relief on the regulated node. Every regulated manifold needs one sized for the regulator failing open (or opt out with checks.reason).`);
     }
     if (capacity < worst) {
-      throw new Error(`${where}: relief capacity ${(capacity * 1e3).toFixed(1)} g/s at set is below the fails-open flow ${(worst * 1e3).toFixed(1)} g/s; needs relief C_dA ≥ ${needCdA.toExponential(3)} m²`);
+      throw new Error(`${where}: relief capacity ${(capacity * 1e3).toFixed(1)} g/s at full lift (set + accumulation) is below the fails-open flow ${(worst * 1e3).toFixed(1)} g/s; needs relief C_dA ≥ ${needCdA.toExponential(3)} m²`);
     }
   }
   return results;
 }
 
 /**
- * Smallest relief C_dA (m²) that passes a regulator's fails-open flow at the relief's set Δp,
- * relieving from a node to back pressure pDown (Pa). For sizing fixtures and stand defaults.
+ * Smallest relief C_dA (m², at full lift) that passes a regulator's fails-open flow at the
+ * relief's full-lift Δp, set·(1 + accumulation), relieving from a node to back pressure pDown (Pa).
+ * For sizing fixtures and stand defaults.
  */
-export function reliefCdAForFailOpen(regCdAmax, supply, set, pDown) {
-  const pOpen = pDown + set;
+export function reliefCdAForFailOpen(regCdAmax, supply, set, pDown, accumulation = ACCUMULATION_DEFAULT) {
+  const pOpen = pDown + set * (1 + accumulation);
   return (regCdAmax * regFlux(supply.p, supply.T, supply.gamma, supply.R, pOpen).flux) / regFlux(pOpen, supply.T, supply.gamma, supply.R, pDown).flux;
 }
