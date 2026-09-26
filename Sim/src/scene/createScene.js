@@ -9,15 +9,21 @@ import { M } from './manim.js';
  * unless a lab asks for it (`orbit: true`).
  */
 export function createScene(canvas) {
+  // Sized from the canvas's container, not the window: on a phone the schematic is one block of a
+  // scrolling page (styles/main.css), on a desktop it fills the screen.
+  const box = () => {
+    const r = canvas.parentElement.getBoundingClientRect();
+    return [Math.max(1, r.width), Math.max(1, r.height)];
+  };
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(...box(), false);
   renderer.setClearColor(M.bg, 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.05, 200);
+  const camera = new THREE.PerspectiveCamera(40, box()[0] / box()[1], 0.05, 200);
   camera.position.set(1.2, 0, 14);
 
   const controls = new OrbitControls(camera, canvas);
@@ -28,20 +34,20 @@ export function createScene(canvas) {
   controls.update();
 
   const labels = new CSS2DRenderer();
-  labels.setSize(window.innerWidth, window.innerHeight);
+  labels.setSize(...box());
   Object.assign(labels.domElement.style, { position: 'absolute', top: '0', left: '0', pointerEvents: 'none' });
   labels.domElement.id = 'label-layer';
   canvas.parentElement.appendChild(labels.domElement);
 
   function onResize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const [w, h] = box();
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
+    renderer.setSize(w, h, false);
     labels.setSize(w, h);
   }
   window.addEventListener('resize', onResize);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(onResize).observe(canvas.parentElement);
 
   return { renderer, scene, camera, controls, labels };
 }

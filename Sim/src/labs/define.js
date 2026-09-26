@@ -10,17 +10,20 @@
  * status        — 'placeholder' | 'uncalibrated' | 'calibrated'. Shown on screen. Nothing is
  *                 'calibrated' until a component's C_dA has been fitted to measured data (J-5).
  * defaultState  — per-lab slice; restored when you come back
- * controls()    — Setup panel HTML; bind(api) attaches its listeners
- * init(ctx)     — build scene objects once; return a handle
+ * controls(state) — Setup panel HTML; bind({ state, bump, root, handle }) attaches its listeners
+ * init(ctx)     — build scene objects once; return a handle (passed to every hook below)
+ * view          — { x, y, z }: where the camera looks at the flat schematic
  * enter(ctx, handle, state) / exit(ctx, handle, state)
- * recompute(state, computed, ctx)
+ * recompute(state, computed, ctx, handle)
  * syncViews(state, computed, ctx, handle) — handle is what init() returned
- * tick(dt, state, computed) — optional; return true to keep dirty
+ * tick(dt, state, computed, handle) — optional, every frame; return true to recompute
  * law(state, computed)      — KaTeX strings
  * liveRows(state, computed) — eq-live HTML
  * readout(state, computed)  — bottom cells HTML
  * coach(state, computed)    — { title, body }: prose with `$…$` math, or a list with eq() blocks
- * plot(state, computed)     — null | plot spec
+ * plot(state, computed, handle) — null | ui/plot.js spec
+ * predict(state, computed)  — Predict-first cards (ui/predict.js); answers computed by physics
+ * onPick(tag, handle)       — a P&ID element under the pointer was clicked
  *
  * The quantities a lab shows are declared in data/quantities.js (LAB_UNITS); a lab with no entry
  * there fails the self-test (V-11).
@@ -45,6 +48,9 @@ export function defineLab(spec) {
     readout: () => '',
     coach: () => ({ title: '', body: '' }),
     plot: () => null,
+    predict: () => [],
+    onPick: null,
+    view: { x: 0, y: 0, z: 12 },
     ...spec,
   };
 }
