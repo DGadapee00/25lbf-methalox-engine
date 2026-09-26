@@ -57,9 +57,8 @@ regularization has a finite but steep slope), and V/(RT·dṁ/dΔp) is of order 
 The cost today is 2 s of cold flow in about 0.5–0.75 s of wall time in Node, which is acceptable
 through M2. It won't be acceptable for M3's full stand, 10 s burns and M6's Monte Carlo sweeps.
 
-**Recommendation:** when M3 profiling confirms this on the full stand, add a linearly implicit
-**Rosenbrock** method (e.g. ROS3P or Rodas4, both with dense output) behind the same driver
-interface. The network is small (tens of states), so a finite-difference Jacobian is cheap.
+**Decision (agreed 2026-09-26): add a linearly implicit Rosenbrock method in M3** (e.g. ROS3P or
+Rodas4, both with dense output) behind the same driver interface. The network is small (tens of states), so a finite-difference Jacobian is cheap.
 Rosenbrock methods need no Newton iteration, which suits the hard events and resets. BDF2 is the
 alternative, but its multistep history has to be restarted at every breakpoint and event, and
 this problem has many of both.
@@ -102,17 +101,31 @@ C¹ continuity at the choke point, and the incompressible limit C_dA·√(2ρΔp
 
 ## 5. Regulator: settling, and when it rings
 
-The model is a first-order poppet (τ) with proportional outlet-pressure feedback (gain K from
-"droop at rated flow"). The self-test has three parts (`selftest/regulator.js`).
+The model is a first-order poppet (τ) with proportional outlet-pressure feedback.
 
-**Exact linear check.** With an ideal supply, an isothermal manifold and a choked outlet, the
-loop is exactly linear while the poppet is unsaturated. A 1% set-point step matches the
-closed-form 2×2 matrix exponential to 4e-8 of the step (ζ = 0.20) and 8e-10 (ζ = 2.37).
+**Set-point convention (changed 2026-09-26).** `pSet` is the **flowing outlet pressure at rated
+flow** (`mdotRated`, from `pSupplyRef`), the number a regulator is adjusted to on the stand.
+Lockup, the no-flow pressure, is `pSet + droop`; give `droop` or `pLockup`, not both. The gain K
+and rated opening z_r are derived from the rating when the network is built
+(`regulatorDerive`). Before this change, `pSet` was the lockup pressure, so a "480 psia"
+regulator flowed at about 460 psia.
 
-**Nominal settling.** GOX, 2000 psia bottle into 20 cm³ at a 480 psia set point, through the
-GOX injector into 250 psia. All regulator numbers are fixtures (20 psi droop at 38.8 g/s,
-τ = 20 ms), because no regulator has been selected. Results: 27% overshoot of the rise, settled
-to ±1% in 55 ms, final 460.6 psia, matching the droop prediction within 1%.
+The self-test has four parts (`selftest/regulator.js`):
+
+1. **Convention.**
+   - Passing rated flow from the reference supply, the outlet holds p_set to 1e-9.
+   - With the outlet shut, it locks up at p_set + droop to 1e-6.
+   - Lockup is quasi-static, so this is measured on a 10 L dead-head, where the loop is overdamped.
+2. **Exact linear check.** With an ideal supply, an isothermal manifold and a choked outlet, the
+   loop is exactly linear while the poppet is unsaturated. A 1% set-point step matches the
+   closed-form 2×2 matrix exponential to 4e-8 of the step (ζ = 0.20) and 2e-9 (ζ = 2.37).
+3. **Nominal settling.**
+   - Setup: GOX, 2000 psia bottle into 20 cm³ at a 480 psia set point, through the GOX
+     injector into 250 psia.
+   - Regulator numbers are fixtures, since no regulator has been selected: 20 psi droop at
+     38.8 g/s, τ = 20 ms.
+   - Result: 26% overshoot of the rise, ±1% by 64 ms, final 479.8 psia.
+4. **Choke margin at the set point** (§6 below).
 
 **When it rings.** Linearized about steady state, the manifold–poppet loop has
 ωn² = a(k + GK)/τ and **ζ = (a·k + 1/τ) / (2ωn)**, where:
@@ -133,27 +146,66 @@ With the fixture regulator:
 - **Ringing is worst when the poppet lag τ is comparable to the manifold's own time constant.**
   That is where ζ bottoms out, the diagonal of the table. A fast poppet on a large manifold is
   overdamped. A slow poppet on a small manifold rings, and so does a stiff regulator (small
-  droop, large K), since GK sits under the square root.
-- **This two-state model can't go unstable** (ζ > 0 always: both characteristic coefficients
-  are positive). Real regulator instability needs a third lag: a sensing line, dome volume, or
-  poppet mass with little damping. None of these is modelled. A test that *expects* sustained
-  oscillation needs that third state first.
-- **Dead-headed fill overshoots.** With the main valve closed, a regulator filling its own small
-  manifold overshoots badly when τ exceeds the fill time. In the V-4 fixture, the ox manifold
-  reached 608 psia (relief at 600 cracked and cycled) and the fuel manifold 1191 psia, against a
-  480 psia set point. Fill time at full opening was about 7 ms against τ = 20 ms. Real
-  regulators lock up better than this. Whether the model is too pessimistic here depends on the
-  real poppet's τ, which a datasheet or the Phase 5 step 1 cold flow can give.
+  droop, large K).
+- **This two-state model can't go unstable** (ζ > 0 always). Real regulator instability needs a
+  third lag (sensing line, dome volume, or poppet mass with little damping). None is modelled.
+- **Dead-headed, there is no outflow (k = 0) and ζ = 1/(2√(aGKτ))**, so a small manifold rings
+  hard. Nothing can bring the pressure back down, so any overshoot past lockup is **trapped**. On
+  20 cm³ with the fixture regulator, ζ ≈ 0.1 and the manifold traps at 919 psia against a
+  500 psia lockup. The self-test asserts that this happens.
 
-## 6. Finding: droop un-chokes the GOX injector (brief §8)
+**Where M1's "1191 psia fuel manifold" came from.** That number was a product of the M1
+fixture, not a prediction:
+- the fixture had **no fuel-manifold relief**;
+- the poppet is a **pure first-order lag** (τ = 20 ms, no datasheet behind it) filling a
+  20 cm³ volume in about 7 ms.
 
-In the nominal run the regulator droops to 460.6 psia, so p₀/P_c = 1.843 < 1.893 (O₂ critical
-ratio, γ = 1.4). **The GOX injector is not choked into 250 psia.** The self-test asserts this so
-it stays visible. The injector flow barely changes (the flux curve is flat near r*), but the
-feed system is no longer decoupled from the chamber, and decoupling is R-8's mitigation. This
-is the case for a choke-margin target (S-3); the M6 sweep will map it.
+The fixture now carries a relief on every regulated manifold, and the fuel manifold's dead-headed
+peak is capped at the relief's 614.7 psia opening pressure. Whether real hardware overshoots at
+all depends on the selected regulator's poppet dynamics; Phase 5 step 1 cold flow will say.
 
-## 7. Known limits (M1)
+**Relief chatter.** With the ox regulator failed open, the ox relief cycles about 200 times in
+0.25 s in the V-4 fixture. A snap-acting relief with 10% blowdown on a 20 cm³ manifold does that.
+The model has no lift dynamics or modulation. Chatter is a real relief-valve failure mode
+(seat damage), so it's worth flagging in the M5 fault reports rather than hiding.
+
+## 5a. Relief sizing, checked when a network is built
+
+Every regulated node must carry relief capacity for its regulator **failing open**.
+`compileNetwork` refuses a network otherwise, naming the regulator and the relief C_dA it needs.
+The rule (`checkReliefs`):
+
+- **Fails-open flow:** C_dA,max from the supply as filled (its highest pressure), into the
+  manifold at the relief's opening pressure.
+- **Capacity:** the reliefs on that node together pass at least that flow **at their set
+  pressure**, with no accumulation allowance.
+- **Downstream assumed shut:** a closed main valve is when a dead-headed manifold is most exposed.
+
+This is deliberately conservative. An allowable accumulation above set (ASME Section VIII
+allows some) is a design decision for Dalton, not a default here.
+`reliefCdAForFailOpen()` gives the minimum C_dA for sizing. Tests check both directions:
+- a relief sized by the rule holds a failed-open, dead-headed manifold at its opening pressure;
+- one at 0.8× lets it climb to 768 psia.
+
+A network may opt out only with `checks: { reliefOnRegulatedNodes: false, reason }`. The
+regulator-dynamics tests do, because a relief would mask the loop they measure. M2's stand
+defaults will not.
+
+## 6. Finding: the GOX choke margin at the set point (brief §8)
+
+Under the new convention the manifold sits at the set point, 479.8 psia at the nominal run's
+flow:
+- p₀/P_c = **1.919** against the critical **1.893** (O₂, γ = 1.4). The injector is choked, but
+  only **1.4% above critical**. That is amber by §5.2's 2.2 threshold.
+- The manifold can fall **6.6 psi** (to 473.2 psia) before the injector unchokes. Any line
+  loss, regulator droop beyond rating, or supply-pressure effect of that size un-chokes it.
+- At P_c ≈ 264 psia (η_c* = 0.97, brief §8) the margin is 1.818 and **the GOX injector
+  un-chokes**.
+
+The self-test asserts all three, so they stay visible. The target margin and the fix remain
+S-3 (an ADR); the M6 sweep will map manifold pressure vs P_c vs margin.
+
+## 7. Known limits (M1–M2)
 
 - Ideal gas. No Z(p,T) (v1.1), no Joule–Thomson cooling across the regulator (M4).
 - NASA-7 N₂ is fitted from 300 K; below that it extrapolates. O₂ and CH₄ are fitted from 200 K.
