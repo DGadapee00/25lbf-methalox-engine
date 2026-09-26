@@ -41,10 +41,10 @@ export function run() {
   const flowing = at(4.5);
   approx(flowing.nodes.manifold.p, s.net.edges.find((e) => e.id === 'PCV-OX-01').pSet, 0.01, `flowing, the regulator holds the manifold at p_set (${(flowing.nodes.manifold.p / PSI).toFixed(1)} psia, 1%)`);
   ok(flowing.edges['INJ-OX-01'].choked && flowing.edges['INJ-OX-01'].margin > 2.2, `the injector is choked into the cold chamber with a wide margin (${flowing.edges['INJ-OX-01'].margin.toFixed(1)}; only hot fire is marginal)`);
-  // Line and chamber both sit at ambient; tolerance-level pressure noise (~0.01 Pa, 1e-7 relative)
-  // moves ~1e-8 kg/s back and forth through the steep near-Δp = 0 conductance. That is noise, not a
-  // leak (mass is conserved, below), so the bound is 1 mg/s.
-  ok(Math.abs(at(2.0).edges['INJ-OX-01'].mdot) < 1e-6 && at(2.0).nodes.line.p < 1.2e5, 'before SV-OX-01 opens nothing reaches the line (< 1 mg/s through the injector)');
+  // Line and chamber both sit at ambient; tolerance-level pressure noise moves a little gas back
+  // and forth through the steep near-Δp = 0 conductance. Under Dormand–Prince that was ~2e-8
+  // kg/s; under Ros3 (default since M3) it is ~4e-10 kg/s, so the bound is back to 1 µg/s.
+  ok(Math.abs(at(2.0).edges['INJ-OX-01'].mdot) < 1e-9 && at(2.0).nodes.line.p < 1.2e5, 'before SV-OX-01 opens nothing reaches the line (< 1 µg/s through the injector)');
   ok(r.final.nodes.line.p < 1.2e5 && r.final.nodes.chamber.p < 1.2e5, 'after SV-OX-01 closes, line and chamber blow down to ambient');
   const y0 = r.sys.initialState();
   approx(r.sys.totals(r.y).m, r.sys.totals(y0).m, 1e-9, 'mass conserved over the sequence (V-4 on the stand)');
