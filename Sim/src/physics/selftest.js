@@ -14,9 +14,10 @@ import * as blowdown from './selftest/blowdown.js';
 import * as conservation from './selftest/conservation.js';
 import * as devices from './selftest/devices.js';
 import * as regulator from './selftest/regulator.js';
+import * as reliefcheck from './selftest/reliefcheck.js';
 import * as cv from './selftest/cv.js';
 
-const SUITES = [registry, thermo, integrator, orifice, blowdown, conservation, devices, regulator, cv];
+const SUITES = [registry, thermo, integrator, orifice, blowdown, conservation, devices, regulator, reliefcheck, cv];
 
 for (const s of SUITES) await s.run();
 await stiffnessReport();

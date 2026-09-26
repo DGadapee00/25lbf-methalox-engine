@@ -4,7 +4,7 @@
  * with M2 and carry their own sources (PROVENANCE.md).
  */
 import { PSI, P_ATM } from '../constants.js';
-import { regulatorGain } from '../elements/regulator.js';
+import { reliefCdAForFailOpen } from '../network.js';
 import { chokedFlux } from '../elements/orifice.js';
 import { R_U } from '../constants.js';
 
@@ -27,17 +27,34 @@ export const V_MANIFOLD = 20e-6;
 export const V_LINE = 5e-6;
 export const T_AMB = 293.15;
 
-/** Regulator fixture: 20 psi droop at the circuit's design flow, 20 ms poppet lag. */
-export function regulatorFixture(W, gamma, mdot, CdAmax) {
+/** Fixture regulator droop (lockup − set) and poppet lag. */
+export const DROOP = 20 * PSI;
+export const TAU_REG = 0.02;
+/** Fixture relief set Δp on each regulated manifold, and the margin its C_dA carries over the minimum. */
+export const RELIEF_SET = 600 * PSI;
+const RELIEF_MARGIN = 1.2;
+
+/**
+ * Regulator fixture: set to the manifold pressure (PROJECT_PLAN §2.3) at the circuit's design flow
+ * (PROJECT_PLAN §2.2), from the bottle as filled; 20 psi droop, so lockup at 500 psia.
+ */
+export function regulatorFixture(mdotRated, CdAmax) {
+  return { CdAmax, pSet: P_MANIFOLD, mdotRated, droop: DROOP, tau: TAU_REG, z0: 0 };
+}
+
+/** A relief on a regulated manifold, sized by the same rule the network build enforces, ×1.2. */
+function reliefFixture(id, node, regCdAmax, W, gamma) {
   const supply = { p: P_BOTTLE, T: T_AMB, gamma, R: R_U / W };
-  return { CdAmax, pSet: P_MANIFOLD, K: regulatorGain({ droop: 20 * PSI, mdot, CdAmax, supply }), tau: 0.02, z0: 0 };
+  const CdA = RELIEF_MARGIN * reliefCdAForFailOpen(regCdAmax, supply, RELIEF_SET, P_ATM);
+  return { id, type: 'relief', a: node, b: 'amb', CdA, set: RELIEF_SET, blowdown: 0.1 };
 }
 
 /**
  * Two-circuit cold-flow stand with purge, relief and check: every element type, every node kind.
  * Ox: O₂ bottle → regulator → manifold → main valve → line → injector → chamber.
  * Fuel: CH₄, the same. Purge: N₂ bottle → valve → check → chamber. Chamber → throat → ambient.
- * Relief on the ox manifold (set just above lockup, so it cracks when the regulator fails open).
+ * Reliefs on both regulated manifolds (600 psia Δp, sized for the regulator failing open; the
+ * network build refuses a regulated node without one). The ox regulator fails open mid-run.
  */
 export function coldFlowStand() {
   const CdAregOx = 3 * CDA_OX_INJ * chokedFlux(P_MANIFOLD, T_AMB, 1.4, R_U / 0.031998) / chokedFlux(P_BOTTLE, T_AMB, 1.4, R_U / 0.031998);
@@ -57,11 +74,12 @@ export function coldFlowStand() {
       { id: 'amb', kind: 'ambient', p: P_ATM, T: T_AMB, Y: { N2: 0.767, O2: 0.233 } },
     ],
     edges: [
-      { id: 'REG-OX', type: 'regulator', a: 'bot-ox', b: 'man-ox', ...regulatorFixture(0.031998, 1.4, 0.0388, CdAregOx) },
+      { id: 'REG-OX', type: 'regulator', a: 'bot-ox', b: 'man-ox', ...regulatorFixture(0.0388, CdAregOx) },
       { id: 'PV-OX', type: 'valve', a: 'man-ox', b: 'line-ox', CdAmax: 5 * CDA_OX_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
       { id: 'INJ-OX', type: 'orifice', a: 'line-ox', b: 'chamber', CdA: CDA_OX_INJ },
-      { id: 'RV-OX', type: 'relief', a: 'man-ox', b: 'amb', CdA: 2 * CDA_OX_INJ, set: 600 * PSI, blowdown: 0.1 },
-      { id: 'REG-FU', type: 'regulator', a: 'bot-fu', b: 'man-fu', ...regulatorFixture(0.016043, 1.31, 0.0139, CdAregFu) },
+      reliefFixture('RV-OX', 'man-ox', CdAregOx, 0.031998, 1.4),
+      { id: 'REG-FU', type: 'regulator', a: 'bot-fu', b: 'man-fu', ...regulatorFixture(0.0139, CdAregFu) },
+      reliefFixture('RV-FU', 'man-fu', CdAregFu, 0.016043, 1.31),
       { id: 'PV-FU', type: 'valve', a: 'man-fu', b: 'line-fu', CdAmax: 5 * CDA_FU_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
       { id: 'INJ-FU', type: 'orifice', a: 'line-fu', b: 'chamber', CdA: CDA_FU_INJ },
       { id: 'PV-N2', type: 'valve', a: 'bot-n2', b: 'line-n2', CdAmax: CDA_FU_INJ, tOpen: 0.02, tClose: 0.02 },
