@@ -5,14 +5,16 @@
  */
 import { PSI, P_ATM } from '../constants.js';
 import { reliefCdAForFailOpen } from '../network.js';
+import { components, injectorCdA } from '../../data/components.js';
 import { chokedFlux } from '../elements/orifice.js';
 import { R_U } from '../constants.js';
 
 const circle = (d) => (Math.PI / 4) * d * d;
 
-/** PROJECT_PLAN §2.3 injector: 4 × ⌀1.4 mm GOX, 4 × ⌀1.0 mm GCH₄; C_d 0.77 (brief V-9). */
-export const CDA_OX_INJ = 0.77 * 4 * circle(1.4e-3);
-export const CDA_FU_INJ = 0.77 * 4 * circle(1.0e-3);
+/** PROJECT_PLAN §2.3 injector: 4 × ⌀1.4 mm GOX, 4 × ⌀1.0 mm GCH₄; C_d from components.json. */
+const C = components();
+export const CDA_OX_INJ = injectorCdA(C, 'INJ-OX-01');
+export const CDA_FU_INJ = injectorCdA(C, 'INJ-FU-01');
 /** PROJECT_PLAN §2.2 throat ⌀8.0 mm, C_d 1 (fixture: a cold-flow throat is not characterized). */
 export const CDA_THROAT = circle(8.0e-3);
 /** PROJECT_PLAN §2.2 chamber volume ≈ 45 cm³. */

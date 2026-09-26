@@ -58,5 +58,14 @@ export function provenance(json = raw) {
 
 export const componentsMeta = { source: raw.source, generated: raw.generated, commit: raw.commit };
 
+/**
+ * C_dA (m²) of an injector circuit: the one shared injector C_d (components.json `injector.Cd`,
+ * uncalibrated) × n holes × hole area. Every injector C_dA in the app comes through here.
+ */
+export function injectorCdA(c, part) {
+  const p = c[part];
+  return c.injector.Cd * p.n * (Math.PI / 4) * p.d * p.d;
+}
+
 /** C_dA (m²) for a valve part given by C_v. */
 export const cdaOf = (part) => cvToCdA(part.Cv);

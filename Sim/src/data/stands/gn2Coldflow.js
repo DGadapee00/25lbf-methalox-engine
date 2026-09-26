@@ -12,7 +12,7 @@
  *
  * Starts safe: bottle isolation shut, everything downstream at ambient.
  */
-import { components } from '../components.js';
+import { components, injectorCdA } from '../components.js';
 import { reliefCdAForFailOpen } from '../../physics/network.js';
 import { stateFromPTY, nasa7Gas, massFractions } from '../../physics/gas.js';
 import { cvToCdA } from '../../physics/elements/orifice.js';
@@ -75,7 +75,7 @@ export function gn2Coldflow(c = components()) {
         { id: 'PSV-OX-01', type: 'relief', a: 'manifold', b: 'amb', CdA: reliefCdA, set: psv.set, blowdown: psv.blowdown, accumulation: psv.accumulation, tauLift: psv.tauLift },
         valve('SV-OX-01', 'manifold', 'line', c['SV-OX-01']),
         valve('SV-OX-02', 'manifold', 'amb', c['SV-OX-02']),
-        { id: 'INJ-OX-01', type: 'orifice', a: 'line', b: 'chamber', CdA: c['INJ-OX-01'].Cd * c['INJ-OX-01'].n * circle(c['INJ-OX-01'].d) },
+        { id: 'INJ-OX-01', type: 'orifice', a: 'line', b: 'chamber', CdA: injectorCdA(c, 'INJ-OX-01') },
         { id: 'THROAT-01', type: 'orifice', a: 'chamber', b: 'amb', CdA: c['THROAT-01'].Cd * circle(c['THROAT-01'].d) },
       ],
     },

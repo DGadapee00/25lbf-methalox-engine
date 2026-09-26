@@ -10,7 +10,7 @@ import { reliefCdAForFailOpen } from '../physics/network.js';
 import { stateFromPTY, massFractions } from '../physics/gas.js';
 import { cvToCdA } from '../physics/elements/orifice.js';
 import { PSI, P_ATM } from '../physics/constants.js';
-import { components } from '../data/components.js';
+import { components, injectorCdA } from '../data/components.js';
 
 /**
  * Regulator (brief §6.1, lab 3): droop, lockup, and fails-open, on the stand's regulator and
@@ -52,7 +52,6 @@ function network(s) {
   const psv = c['PSV-OX-01'];
   const supply = stateFromPTY(gas, s.pSupply, T, massFractions(gas, { N2: 1 }));
   const reliefCdA = psv.sizingMargin * reliefCdAForFailOpen(regCdA, supply, psv.set, P_ATM, psv.accumulation);
-  const inj = c['INJ-OX-01'];
   const shutAt0 = s.case !== 'flowing';
   const net = {
     nodes: [
@@ -64,7 +63,7 @@ function network(s) {
     edges: [
       { id: 'PCV-OX-01', type: 'regulator', a: 'bottle', b: 'manifold', CdAmax: regCdA, pSet: s.pSet, mdotRated: c['PCV-OX-01'].mdotRated, droop: s.droop, tau: s.tau, z0: 0 },
       { id: 'PSV-OX-01', type: 'relief', a: 'manifold', b: 'amb', CdA: reliefCdA, set: psv.set, blowdown: psv.blowdown, accumulation: psv.accumulation, tauLift: psv.tauLift },
-      { id: 'SV-OX-01', type: 'valve', a: 'manifold', b: 'back', CdAmax: inj.Cd * inj.n * circle(inj.d), tOpen: 0, tClose: 0, x0: 1 },
+      { id: 'SV-OX-01', type: 'valve', a: 'manifold', b: 'back', CdAmax: injectorCdA(c, 'INJ-OX-01'), tOpen: 0, tClose: 0, x0: 1 },
     ],
   };
   const schedule = [];
