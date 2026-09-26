@@ -19,8 +19,10 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
 #app { position: fixed; inset: 0; overflow: hidden; }
+#stage { position: absolute; inset: 0; }
 #c { display: block; width: 100%; height: 100%; }
 .hud { position: absolute; z-index: 2; }
+#label-layer { z-index: 1; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; backdrop-filter: blur(6px); }
 .brand { top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .brand h1 { margin: 0; font-size: 17px; letter-spacing: 0.02em; }
@@ -51,9 +53,46 @@ button.active { border-color: var(--text); }
 .scene-label { font: 12px var(--mono); color: var(--text); white-space: nowrap; }
 .scene-label.ox { color: var(--ox); }
 .scene-label.fuel { color: var(--fuel); }
+label { display: block; margin: 6px 0; font-size: 13px; color: var(--muted); }
+label input, label select { display: block; width: 100%; margin-top: 2px; font: inherit; color: var(--text); background: #1c1f24; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+input[type='range'] { width: 100%; }
+.setup h3 { margin: 0 0 6px; font-size: 14px; }
+.setup .note { color: var(--muted); font-size: 11px; margin: 8px 0 0; }
+.setup button { margin: 4px 4px 0 0; }
+.valve-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.prov { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.prov ul { padding-left: 16px; margin: 4px 0; max-height: 180px; overflow: auto; }
+.prov .placeholder, .caveat { color: var(--warn); }
+.prov .uncalibrated { color: var(--warn); font-style: italic; }
+.plot-panel { left: 12px; bottom: 96px; width: min(460px, calc(100vw - 360px)); height: 200px; padding: 6px; }
+.plot-panel canvas { width: 100%; height: 100%; display: block; }
+.legend { left: 50%; transform: translateX(-50%); bottom: 100px; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.legend-bar { width: 160px; height: 8px; border-radius: 4px; }
+.legend-note { margin-left: 6px; }
+.choke.green { color: var(--ok); } .choke.amber { color: var(--warn); } .choke.red { color: var(--bad); }
+.caveat { font-size: 11px; display: block; }
+.predict-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-top: 10px; }
+.predict-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--next); margin-right: 4px; }
+.predict-opts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.predict-opt.right { border-color: var(--ok); color: var(--ok); }
+.predict-opt.wrong { border-color: var(--bad); color: var(--bad); }
+.predict-why { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.pid-tag { font: 11px var(--mono); color: var(--text); background: rgba(11,12,14,0.6); padding: 0 3px; border-radius: 3px; }
+.pid-node { font: 11px var(--font); color: var(--muted); }
+.pid-sensor { font: 11px var(--mono); color: var(--text); text-align: center; line-height: 1.2; }
+.pid-sensor span { display: block; color: var(--muted); }
+button.stand { border-style: dashed; }
 @media (max-width: 720px) {
-  .brand { left: 8px; right: 8px; }
-  .setup { display: none; }
-  .eq-panel { left: 8px; right: 8px; width: auto; top: auto; bottom: 150px; max-height: 32vh; }
-  .readout-bar { left: 8px; right: 8px; bottom: 8px; }
+  /* A phone gets a scrolling page: schematic, readouts, controls, plot, explanation. */
+  html, body { height: auto; }
+  #app { position: static; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 16px; overflow: visible; }
+  .hud { position: static; transform: none; width: auto; max-height: none; }
+  .brand { order: 0; }
+  #stage { position: relative; inset: auto; order: 1; height: 46vh; min-height: 260px; margin: 0 -16px; }
+  .readout-bar { order: 2; }
+  .setup { order: 3; display: block; max-height: none; }
+  .plot-panel { order: 4; height: 180px; }
+  .eq-panel { order: 5; }
+  .legend { order: 6; justify-content: center; }
+  .legend-note { display: none; }
 }

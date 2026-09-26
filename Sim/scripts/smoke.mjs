@@ -32,20 +32,38 @@ page.on('console', (msg) => {
 const relErr = (got, exp) => (Number.isFinite(got) ? Math.abs(got - exp) / (exp !== 0 ? Math.abs(exp) : 1) : Infinity);
 const mismatches = [];
 
+const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+
 let status = 0;
 try {
   await page.goto(base, { waitUntil: 'load', timeout: 30000 });
   for (const lab of LABS) {
     await page.evaluate((h) => (location.hash = h), `#/${lab.kind}/${lab.id}`);
-    await page.waitForFunction((id) => window.__sim?.app?.id === id && !window.__sim.app.dirty, lab.id, { timeout: 10000 });
-    const got = await page.evaluate((id) => ({ computed: window.__sim.app.computed[id], status: document.getElementById('lab-status').textContent }), lab.id);
+    await page.waitForFunction((id) => window.__sim?.app?.id === id && !window.__sim.app.dirty && window.__sim.app.computed[id], lab.id, { timeout: 20000 });
+    if (lab.kind === 'stand') {
+      // Drive the live stand: bottle isolation open, then the main valve, at 5× time.
+      await page.waitForFunction((id) => window.__sim.app.computed[id]?.readout, lab.id, { timeout: 20000 });
+      await page.evaluate((id) => {
+        const { app } = window.__sim;
+        app.slices[id].scale = 5;
+        app.handles[id].toggle('HV-OX-01');
+      }, lab.id);
+      await page.waitForFunction((id) => window.__sim.app.computed[id].t > 2.5, lab.id, { timeout: 30000 });
+      await page.evaluate((id) => window.__sim.app.handles[id].toggle('SV-OX-01'), lab.id);
+      await page.waitForFunction((id) => window.__sim.app.computed[id].t > 6, lab.id, { timeout: 30000 });
+    }
+    await page.waitForTimeout(300);
+    const got = await page.evaluate((id) => ({ computed: window.__sim.app.computed, status: document.getElementById('lab-status').textContent }), lab.id);
     await page.screenshot({ path: path.join(outDir, `${lab.id}.png`) });
     if (!got.status) mismatches.push({ name: `${lab.id}.status`, got: 'empty', exp: 'a calibration label' });
-    for (const [key, { value, tol }] of Object.entries(baseline[lab.id] || {})) {
-      const v = got.computed?.[key];
-      if (!(relErr(v, value) <= tol)) mismatches.push({ name: `${lab.id}.${key}`, got: v, exp: value, tol });
+    const want = baseline[lab.id];
+    if (!want) mismatches.push({ name: lab.id, got: 'no baseline entry', exp: 'scripts/baseline/values.json' });
+    for (const [key, spec] of Object.entries(want || {})) {
+      const v = get(got.computed, key);
+      if ('equals' in spec) {
+        if (v !== spec.equals) mismatches.push({ name: `${lab.id}: ${key}`, got: v, exp: spec.equals });
+      } else if (!(relErr(v, spec.value) <= spec.tol)) mismatches.push({ name: `${lab.id}: ${key}`, got: v, exp: spec.value, tol: spec.tol });
     }
-    if (!baseline[lab.id]) mismatches.push({ name: lab.id, got: 'no baseline entry', exp: 'scripts/baseline/values.json' });
     console.log(`  loaded  ${lab.kind}/${lab.id}`);
   }
 } catch (e) {

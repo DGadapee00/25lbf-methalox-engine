@@ -1,8 +1,49 @@
 {
-  "_note": "Regression baseline for scripts/smoke.mjs: key → { value (SI), tol (relative) }. Update only on a deliberate change, in its own commit, saying why.",
-  "scaffold": {
-    "Pc": { "value": 1723689.3232920001, "tol": 1e-9 },
-    "F": { "value": 111.2, "tol": 1e-9 },
-    "mdot": { "value": 0.0527, "tol": 1e-9 }
+  "_note": "Regression baseline for scripts/smoke.mjs: lab \u2192 { path in app.computed \u2192 { value (SI), tol (relative) } or { equals } }. Update only on a deliberate change, in its own commit, saying why. Physics correctness is the self-test's job; this only catches drift in what the page shows.",
+  "blowdown": {
+    "blowdown.tau": {
+      "value": 314.50661277271547,
+      "tol": 1e-06
+    },
+    "blowdown.tHalf": {
+      "value": 165.11597170567575,
+      "tol": 0.001
+    }
+  },
+  "orifice": {
+    "orifice.f.mdot": {
+      "value": 0.03938825102897513,
+      "tol": 1e-09
+    },
+    "orifice.f.margin": {
+      "value": 1.92,
+      "tol": 1e-09
+    },
+    "orifice.indicator": {
+      "equals": "amber"
+    }
+  },
+  "regulator": {
+    "regulator.r.final.nodes.manifold.p": {
+      "value": 3315444.164196636,
+      "tol": 1e-06
+    },
+    "regulator.fo.peak": {
+      "value": 5140163.8819240965,
+      "tol": 0.0001
+    }
+  },
+  "gn2-coldflow": {
+    "gn2-coldflow.readout.nodes.manifold.p": {
+      "value": 3312770.639366463,
+      "tol": 0.01
+    },
+    "gn2-coldflow.choke.INJ-OX-01": {
+      "equals": "green"
+    },
+    "gn2-coldflow.failsOpen.0.peak": {
+      "value": 5125293.436208303,
+      "tol": 0.0001
+    }
   }
 }

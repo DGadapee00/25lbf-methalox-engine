@@ -35,8 +35,9 @@ export function run() {
   const vented = r.final.nodes.amb.mIn;
   ok(vented > 0.01, `the run actually moved gas: ${(vented * 1e3).toFixed(1)} g reached ambient`);
   const kinds = new Set(r.events.map((e) => `${e.id}:${e.what}`));
-  ok(kinds.has('RV-OX:open'), 'the ox relief cracked after the regulator failed open');
-  ok(kinds.has('CV-N2:open') && kinds.has('CV-N2:close'), 'the purge check valve opened and reseated');
+  const liftOx = r.samples.map((sm) => sm.edges['PSV-OX-01'].lift);
+  ok(Math.max(...liftOx) > 0, `the ox relief lifted after the regulator failed open (peak lift ${Math.max(...liftOx).toFixed(2)})`);
+  ok(kinds.has('CKV-N2-01:open') && kinds.has('CKV-N2-01:close'), 'the purge check valve opened and reseated');
 
   section('V-5 · adiabatic closed network: two tanks equalize through a valve');
   // Closed forms for a calorically perfect gas, tanks adiabatic, no heat between them:

@@ -1,6 +1,9 @@
 /** Lazy lab loaders, keyed by lab id (see data/catalog.js for what each one is). */
 const loaders = {
-  scaffold: () => import('./scaffold.js'),
+  blowdown: () => import('./blowdown.js'),
+  orifice: () => import('./orifice.js'),
+  regulator: () => import('./regulator.js'),
+  'gn2-coldflow': () => import('./stand.js'),
 };
 
 const cache = new Map();

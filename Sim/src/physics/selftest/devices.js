@@ -12,35 +12,52 @@ const gas = perfectGasGamma('N2', 0.028014, 1.4);
 const T = 300;
 
 export function run() {
-  section('V-6 · relief valve cracks and reseats at its set points');
-  // A tank fed from a fixed 50 bar supply through a small orifice, relieving to 1 atm.
+  section('V-6 · relief valve: proportional lift, cracks at set, full at set + accumulation, reseats with blowdown');
+  // A 1 L isothermal tank fed from a fixed 50 bar supply through a valve, relieving to 1 atm.
+  // Phase 1: feed open, the relief modulates to pass exactly the feed flow.
+  // Phase 2: feed shut at t_cut, the tank vents through the relief until it reseats.
   const set = 20e5;
   const blowdown = 0.15;
+  const acc = 0.1;
+  const P_AMB = 101325;
+  const CdAfeed = 2e-7;
+  const CdArv = 2e-6;
   const relief = {
     nodes: [
       { id: 'sup', kind: 'ambient', p: 50e5, T, Y: { N2: 1 } },
       { id: 'tank', kind: 'volume', V: 1e-3, p: 1e5, T, Y: { N2: 1 }, thermal: 'isothermal' },
-      { id: 'amb', kind: 'ambient', p: 101325, T, Y: { N2: 1 } },
+      { id: 'amb', kind: 'ambient', p: P_AMB, T, Y: { N2: 1 } },
     ],
     edges: [
-      { id: 'feed', type: 'orifice', a: 'sup', b: 'tank', CdA: 2e-7 },
-      { id: 'RV', type: 'relief', a: 'tank', b: 'amb', CdA: 2e-6, set, blowdown },
+      { id: 'SV-N2-01', type: 'valve', a: 'sup', b: 'tank', CdAmax: CdAfeed, tOpen: 0, tClose: 0, x0: 1 },
+      { id: 'PSV-N2-01', type: 'relief', a: 'tank', b: 'amb', CdA: CdArv, set, blowdown, accumulation: acc, tauLift: 1e-3 },
     ],
   };
-  const r = simulate(relief, { gas, tEnd: 20, sampleDt: 0.05 });
-  recordStats('V-6 relief cycling', r.stats);
-  const ev = r.events.filter((e) => e.id === 'RV');
-  ok(ev.length >= 4, `relief cycled (${ev.length} crack/reseat events in 20 s)`);
-  // Pressure at each event, from the dense output-located event time.
-  const pAt = (t) => {
-    const r2 = simulate(relief, { gas, tEnd: t, sampleDt: t });
-    return r2.final.nodes.tank.p;
-  };
-  const first = ev[0];
-  const second = ev[1];
-  ok(first.what === 'open' && second.what === 'close', 'first a crack, then a reseat');
-  approx(pAt(first.t) - 101325, set, 1e-6, `cracks at the set Δp (${(set / 1e5).toFixed(1)} bar above ambient)`);
-  approx(pAt(second.t) - 101325, set * (1 - blowdown), 1e-6, `reseats at set·(1 − blowdown) = ${((set * (1 - blowdown)) / 1e5).toFixed(2)} bar Δp`);
+  const tCut = 30;
+  const r = simulate(relief, { gas, tEnd: 60, schedule: [{ t: tCut, id: 'SV-N2-01', cmd: 'close' }], sampleDt: 0.01, rtol: 1e-10 });
+  recordStats('V-6 relief, feed then vent', r.stats);
+  const pts = r.samples.map((sm) => ({ t: sm.t, dp: sm.nodes.tank.p - P_AMB, L: sm.edges['PSV-N2-01'].lift }));
+  // Crack: the first sample with lift is at Δp just above set (the rising curve starts there).
+  const first = pts.find((q) => q.L > 1e-6);
+  ok(first && first.dp >= set && first.dp < set * (1 + 0.01 * acc), `lift begins at the set Δp (${first ? (first.dp / 1e5).toFixed(4) : '—'} bar vs ${(set / 1e5).toFixed(1)})`);
+  // Modulating balance before the cut: relief flow = feed flow at lift L*, on the rising curve.
+  const bal = r.samples.find((sm) => sm.t >= tCut - 0.5);
+  const Ls = bal.edges['PSV-N2-01'].lift;
+  const dps = bal.nodes.tank.p - P_AMB;
+  approx(dps, set * (1 + acc * Ls), 1e-6, `holding feed flow, Δp sits on the rising curve: set·(1 + acc·L*) with L* = ${Ls.toFixed(3)}`);
+  approx(bal.edges['PSV-N2-01'].mdot, bal.edges['SV-N2-01'].mdot, 1e-6, 'and passes exactly the feed flow (it modulates, it does not cycle)');
+  ok(Ls > 0 && Ls < 1, 'the balance is at partial lift, inside the loop');
+  // After the cut the lift holds until Δp reaches the falling curve at L*, then follows it down.
+  const pReseat = set * (1 - blowdown);
+  const pFull = set * (1 + acc);
+  const dpTurn = pReseat + Ls * (pFull - pReseat);
+  const held = pts.filter((q) => q.t > tCut + 0.05 && q.dp > dpTurn * 1.001);
+  ok(held.length > 0 && held.every((q) => Math.abs(q.L - Ls) < 1e-3), `lift holds at L* while Δp falls to the closing curve (${(dpTurn / 1e5).toFixed(3)} bar)`);
+  const last = pts[pts.length - 1];
+  approx(last.dp, pReseat, 2e-3, `reseats at set·(1 − blowdown) = ${(pReseat / 1e5).toFixed(2)} bar Δp`);
+  ok(last.L < 1e-3, 'and is shut again at the end');
+  const cycles = pts.reduce((n, q, i) => n + (i && q.L > 1e-3 && pts[i - 1].L <= 1e-3 ? 1 : 0), 0);
+  ok(cycles === 1, `one lift, no chatter (${cycles} opening${cycles === 1 ? '' : 's'})`);
 
   section('V-6 · check valve');
   const check = (pa, pb, crack) => ({

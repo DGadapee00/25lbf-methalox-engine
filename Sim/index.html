@@ -9,7 +9,7 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="c" role="img" aria-label="Stand schematic"></canvas>
+      <div id="stage"><canvas id="c" role="img" aria-label="Stand schematic"></canvas></div>
 
       <header class="hud panel brand">
         <div class="brand-text">
@@ -32,7 +32,17 @@
         <div class="law" id="law"></div>
         <div class="eq-live" id="eq-live"></div>
         <div class="coach" id="coach"></div>
+        <div class="predict" id="predict"></div>
       </aside>
+
+      <aside class="hud panel plot-panel" id="plot-panel" aria-label="Plot" hidden>
+        <canvas id="plot"></canvas>
+      </aside>
+
+      <div class="hud legend" aria-label="Line pressure colour scale">
+        <span>ambient</span><div class="legend-bar" id="legend-bar"></div><span>stand max</span>
+        <span class="legend-note">line pressure (log)</span>
+      </div>
 
       <footer class="hud panel readout-bar">
         <div class="readout" id="readout"></div>

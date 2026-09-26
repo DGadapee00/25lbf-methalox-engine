@@ -5,17 +5,17 @@
  * list lands, so the tab bar can say what is coming without pretending it is here.
  */
 export const LABS = [
-  { id: 'scaffold', kind: 'lab', title: 'Scaffold check', milestone: 'M0' },
+  { id: 'blowdown', kind: 'lab', title: 'Blowdown', milestone: 'M2' },
+  { id: 'orifice', kind: 'lab', title: 'Orifice', milestone: 'M2' },
+  { id: 'regulator', kind: 'lab', title: 'Regulator', milestone: 'M2' },
+  { id: 'gn2-coldflow', kind: 'stand', title: 'GN₂ cold-flow stand', milestone: 'M2' },
 ];
 
 export const COMING = [
-  { title: 'Blowdown', milestone: 'M2' },
-  { title: 'Orifice', milestone: 'M2' },
-  { title: 'Regulator', milestone: 'M2' },
-  { title: 'Valve timing', milestone: 'M2' },
-  { title: 'Injector', milestone: 'M2' },
-  { title: 'Chamber fill', milestone: 'M4' },
+  { title: 'Valve timing', milestone: 'M3' },
+  { title: 'Injector', milestone: 'M3' },
   { title: 'Full stand', milestone: 'M3' },
+  { title: 'Chamber fill', milestone: 'M4' },
 ];
 
 export const labById = (id) => LABS.find((l) => l.id === id) || null;
