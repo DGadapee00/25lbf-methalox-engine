@@ -37,7 +37,24 @@ export function drawPlot(canvas, spec) {
   const g = canvas.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
-  const pad = { l: 48, r: 10, t: 10, b: 30 };
+  // The legend gets its own strip above the plot area, so it can never sit on a curve.
+  const labelled = spec.series.filter((s) => s.label);
+  g.font = '11px ui-monospace, Menlo, monospace';
+  const rows = [];
+  let row = [];
+  let rowW = 0;
+  for (const s of labelled) {
+    const w = 18 + g.measureText(s.label).width + 12;
+    if (row.length && rowW + w > W - 48 - 10) {
+      rows.push(row);
+      row = [];
+      rowW = 0;
+    }
+    row.push({ s, w });
+    rowW += w;
+  }
+  if (row.length) rows.push(row);
+  const pad = { l: 48, r: 10, t: 10 + rows.length * 14, b: 30 };
   const all = spec.series.flatMap((s) => s.xs.map((x, i) => [x, s.ys[i]])).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
   const hy = (spec.hlines || []).map((h) => h.y);
   const xs = all.map((p) => p[0]);
@@ -105,7 +122,10 @@ export function drawPlot(canvas, spec) {
       g.fillText(h.label, W - pad.r - 2, Y(h.y) - 3);
     }
   }
-  for (const v of spec.vlines || []) {
+  // Vertical reference lines. Each label sits on the side of its line away from the nearest other
+  // line, and labels step down one row each, so two close lines (r* and 1/2.2) cannot collide.
+  const vls = (spec.vlines || []).slice().sort((a, b) => a.x - b.x);
+  vls.forEach((v, i) => {
     g.strokeStyle = v.color;
     g.setLineDash([3, 3]);
     g.beginPath();
@@ -113,12 +133,14 @@ export function drawPlot(canvas, spec) {
     g.lineTo(X(v.x), H - pad.b);
     g.stroke();
     g.setLineDash([]);
-    if (v.label) {
-      g.fillStyle = v.color;
-      g.textAlign = 'left';
-      g.fillText(v.label, X(v.x) + 3, pad.t + 10);
-    }
-  }
+    if (!v.label) return;
+    const leftN = i > 0 ? X(v.x) - X(vls[i - 1].x) : Infinity;
+    const rightN = i < vls.length - 1 ? X(vls[i + 1].x) - X(v.x) : Infinity;
+    const onRight = rightN >= leftN;
+    g.fillStyle = v.color;
+    g.textAlign = onRight ? 'left' : 'right';
+    g.fillText(v.label, X(v.x) + (onRight ? 4 : -4), pad.t + 11 + 12 * i);
+  });
   for (const s of spec.series) {
     g.strokeStyle = s.color;
     g.lineWidth = s.width || 2;
@@ -138,16 +160,18 @@ export function drawPlot(canvas, spec) {
     g.stroke();
     g.setLineDash([]);
   }
-  // Legend, top left.
-  let ly = pad.t + 10;
+  // Legend strip, above the plot area.
   g.textAlign = 'left';
-  for (const s of spec.series) {
-    if (!s.label) continue;
-    g.fillStyle = s.color;
-    g.fillRect(pad.l + 6, ly - 6, 10, 3);
-    g.fillText(s.label, pad.l + 20, ly - 2);
-    ly += 13;
-  }
+  rows.forEach((r, ri) => {
+    let lx = pad.l;
+    const ly = 12 + ri * 14;
+    for (const { s, w } of r) {
+      g.fillStyle = s.color;
+      g.fillRect(lx, ly - 5, 12, 3);
+      g.fillText(s.label, lx + 16, ly);
+      lx += w;
+    }
+  });
   if (spec.marker && Number.isFinite(spec.marker.x) && Number.isFinite(spec.marker.y)) {
     g.fillStyle = spec.marker.color || '#ece6e2';
     g.beginPath();

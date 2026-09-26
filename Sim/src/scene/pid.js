@@ -26,11 +26,13 @@ const PIPE_W = 5;
 const OUTLINE = M.white;
 const CHOKE = { green: 0x83c167, amber: 0xf0ac5f, red: 0xfc6255, off: 0x444444 };
 
-function label(html, x, y, cls) {
+/** anchor: [ax, ay] in the label's own box; [0.5, 0.5] centres it on (x, y), [0, 0] puts its top-left corner there. */
+function label(html, x, y, cls, anchor = [0.5, 0.5]) {
   const el = document.createElement('div');
   el.className = cls;
   el.innerHTML = html;
   const o = new CSS2DObject(el);
+  o.center.set(anchor[0], anchor[1]);
   o.position.set(x, y, 0.05);
   return o;
 }
@@ -126,8 +128,12 @@ export class PidView {
         fill = add(new THREE.Mesh(new THREE.CircleGeometry(0.11, 20), new THREE.MeshBasicMaterial({ color: 0x333333 })));
         fill.position.set(x, y, 0.03);
       }
-      const drop = { bottle: 1.55, chamber: 0.85, reservoir: 0.8 }[kind] ?? 0.35;
-      const name = add(label(n.label || n.id, x, y - drop, 'pid-node'));
+      // Bottles, chambers and reservoirs are labelled under their body. A junction can have pipes
+      // on all four sides, so its label goes on the diagonal, below and right, clear of any pipe.
+      const name =
+        kind === 'junction'
+          ? add(label(n.label || n.id, x + 0.16, y - 0.16, 'pid-node', [0, 0]))
+          : add(label(n.label || n.id, x, y - ({ bottle: 1.55, chamber: 0.85, reservoir: 0.8 }[kind] ?? 0.35), 'pid-node'));
       this.nodes.push({ id: n.id, fill, name, kind });
     }
 
