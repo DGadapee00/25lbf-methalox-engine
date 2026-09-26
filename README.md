@@ -44,8 +44,9 @@ Each phase ends at a tagged gate (`v0.1-requirements` → `v1.1-published`). See
 ├── Fabrication/
 ├── Test_Stand/
 │   └── firmware/             # sequencer firmware
+├── Sim/                      # stand + feed-system simulator (browser app); see Sim/README.md
 ├── Data_Logs/
 │   └── YYYY-MM-DD-testNN/
 ├── Photos_Videos/
-└── LICENSE (MIT)
+└── LICENSE                   # MIT
 ```
