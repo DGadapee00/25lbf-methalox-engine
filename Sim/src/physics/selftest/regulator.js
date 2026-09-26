@@ -82,7 +82,7 @@ export function run() {
   const CdAout = CDA_OX_INJ;
   const CdAmax = 3 * CdAout * (P_MANIFOLD / P_BOTTLE);
   const supply = { p: P_BOTTLE, T, gamma: g, R };
-  const reg = { id: 'REG', CdAmax, pSet: P_MANIFOLD, mdotRated: 0.0388, droop: DROOP, tau: TAU_REG };
+  const reg = { id: 'PCV-OX-01', CdAmax, pSet: P_MANIFOLD, mdotRated: 0.0388, droop: DROOP, tau: TAU_REG };
   const { K, zRated, pLockup } = regulatorDerive(reg, supply);
 
   section('Regulator · set-point convention: p_set is the flowing pressure at rated flow');
@@ -100,11 +100,12 @@ export function run() {
   const flowing = simulate(rated({ id: 'OUT', type: 'orifice', a: 'man', b: 'amb', CdA: CdAr }), { gas, tEnd: 0.5, sampleDt: 0.05, rtol: 1e-10 });
   recordStats('regulator rated-flow hold', flowing.stats);
   approx(flowing.final.nodes.man.p, P_MANIFOLD, 1e-9, 'passing rated flow from the reference supply, the outlet holds p_set (480 psia)');
-  approx(flowing.final.edges.REG.mdot, reg.mdotRated, 1e-8, '…at the rated flow (38.8 g/s)');
+  approx(flowing.final.edges['PCV-OX-01'].mdot, reg.mdotRated, 1e-8, '…at the rated flow (38.8 g/s)');
   // Lockup is quasi-static: with the outlet shut nothing can bring pressure back down, so any
   // overshoot is trapped. Dead-headed, the loop has ζ = 1/(2√(aGKτ)); on 10 L it is overdamped
-  // (ζ ≈ 2.4) and creeps up to lockup from below. On the 20 cm³ manifold ζ ≈ 0.1, and it traps
-  // well above lockup: the dead-headed overshoot in docs/solver.md §5.
+  // (ζ ≈ 2.4) and creeps up to lockup from below. On the 20 cm³ manifold ζ ≈ 0.1 and the model
+  // traps well above lockup. That is a LIMITATION of the first-order poppet model (docs/solver.md
+  // §5), not a prediction: it is asserted so a model change that alters it is noticed.
   const shut = { id: 'OUT', type: 'valve', a: 'man', b: 'amb', CdAmax: CdAr, tOpen: 0, tClose: 0, x0: 1 };
   const close = [{ t: 0, id: 'OUT', cmd: 'close' }];
   const dead = simulate(rated(shut, 0.01), { gas, tEnd: 10, schedule: close, sampleDt: 0.5, rtol: 1e-10 });
@@ -113,7 +114,7 @@ export function run() {
   const small = simulate(rated(shut), { gas, tEnd: 0.5, schedule: close, sampleDt: 0.05, rtol: 1e-10 });
   recordStats('regulator lockup, 20 cm³ dead-head', small.stats);
   const trapped = small.final.nodes.man.p;
-  ok(trapped > 1.2 * pLockup, `on 20 cm³ (ζ ≈ 0.1) the poppet lag traps ${(trapped / PSI).toFixed(0)} psia, well above lockup: why regulated nodes need reliefs`);
+  ok(trapped > 1.2 * pLockup, `model limitation, pinned: on 20 cm³ the first-order poppet traps ${(trapped / PSI).toFixed(0)} psia above lockup (not a hardware prediction)`);
   const viaLockup = regulatorDerive({ ...reg, droop: undefined, pLockup }, supply);
   approx(viaLockup.K, K, 1e-12, 'giving pLockup instead of droop derives the same gain');
 
@@ -140,7 +141,7 @@ export function run() {
     // Long enough for the slowest mode to decay by e^-12 (~6e-6 of the step).
     const slow = L.zeta < 1 ? L.zeta * L.wn : L.wn * (L.zeta - Math.sqrt(L.zeta * L.zeta - 1));
     const tEnd = 12 / slow;
-    const r = simulate(net, { gas, tEnd, schedule: [{ t: 0, id: 'REG', cmd: { pSet: pSet2 } }], sampleDt: tEnd / 400, rtol: 1e-10 });
+    const r = simulate(net, { gas, tEnd, schedule: [{ t: 0, id: 'PCV-OX-01', cmd: { pSet: pSet2 } }], sampleDt: tEnd / 400, rtol: 1e-10 });
     recordStats(`regulator linear step, ${label}`, r.stats);
     const A = [
       [-L.a * L.k, L.a * L.G],
@@ -153,7 +154,7 @@ export function run() {
     });
     ok(worst < 1e-6, `${label} (ζ = ${L.zeta.toFixed(3)}): p(t) matches the closed-form 2×2 response, worst ${worst.toExponential(1)} of the step`);
     approx(r.final.nodes.man.p, p2, 1e-6, `${label}: settles at p_ss = GK·p_lockup/(k + GK)`);
-    ok(r.samples.every((s) => s.edges.REG.z > 0 && s.edges.REG.z < 1 && s.edges.INJ.choked), `${label}: poppet unsaturated and outlet choked throughout (linear regime holds)`);
+    ok(r.samples.every((s) => s.edges['PCV-OX-01'].z > 0 && s.edges['PCV-OX-01'].z < 1 && s.edges.INJ.choked), `${label}: poppet unsaturated and outlet choked throughout (linear regime holds)`);
   }
 
   section('Regulator · settling at nominal conditions (GOX, 2000 → 480 psia, into 250 psia)');

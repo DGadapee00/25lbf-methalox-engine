@@ -7,6 +7,8 @@ import { QUANTITIES, LAB_UNITS, baseUnits } from '../../data/quantities.js';
 import { LABS } from '../../data/catalog.js';
 import { parseUnit } from '../units.js';
 import { PSI, LBF, G0, LBM, INCH } from '../constants.js';
+import { parseTag, tagProblems } from '../../data/tags.js';
+import { coldFlowStand } from './fixtures.js';
 
 export function run() {
   section('V-11 · units registry');
@@ -42,4 +44,11 @@ export function run() {
   approx(INCH * 12 * 3, 0.9144, 1e-15, 'yard = 0.9144 m exactly');
   approx((250 * PSI) / 1e6, 1.72, 0.003, 'PROJECT_PLAN §2.1: 250 psia ≈ 1.72 MPa');
 
+
+  section('S-2 · P&ID tags: <ISA letters>-<circuit>-<nn>');
+  ok(parseTag('PCV-OX-01')?.letters === 'PCV' && parseTag('PT-FU-02')?.n === 2, 'parses PCV-OX-01 and PT-FU-02');
+  ok(!parseTag('PV-OX') && !parseTag('SV-XX-01') && !parseTag('SV-OX-1') && !parseTag('SV-OX-00'), 'rejects old-style, unknown-circuit, one-digit and 00 tags');
+  const probs = tagProblems(coldFlowStand());
+  ok(!probs.length, `every valve, regulator, relief and check in the cold-flow fixture is S-2 tagged (${probs.join('; ') || 'clean'})`);
+  ok(tagProblems({ edges: [{ id: 'PSV-OX-01', type: 'valve' }] }).length === 1, 'a relief code on a plain valve is flagged');
 }

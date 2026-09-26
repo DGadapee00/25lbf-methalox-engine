@@ -42,14 +42,20 @@ export function regulatorFixture(mdotRated, CdAmax) {
   return { CdAmax, pSet: P_MANIFOLD, mdotRated, droop: DROOP, tau: TAU_REG, z0: 0 };
 }
 
+/** Fixture relief lift response time (no relief selected yet; a datasheet value replaces it). */
+export const TAU_LIFT = 0.002;
+
 /** A relief on a regulated manifold, sized by the same rule the network build enforces, ×1.2. */
 function reliefFixture(id, node, regCdAmax, W, gamma) {
   const supply = { p: P_BOTTLE, T: T_AMB, gamma, R: R_U / W };
   const CdA = RELIEF_MARGIN * reliefCdAForFailOpen(regCdAmax, supply, RELIEF_SET, P_ATM);
-  return { id, type: 'relief', a: node, b: 'amb', CdA, set: RELIEF_SET, blowdown: 0.1 };
+  return { id, type: 'relief', a: node, b: 'amb', CdA, set: RELIEF_SET, blowdown: 0.1, tauLift: TAU_LIFT };
 }
 
 /**
+ * Tags follow S-2 (2026-09-26): <ISA letters>-<circuit>-<nn>. Orifices (injector, throat) have
+ * no letter code in S-2 yet and keep descriptive ids.
+ *
  * Two-circuit cold-flow stand with purge, relief and check: every element type, every node kind.
  * Ox: O₂ bottle → regulator → manifold → main valve → line → injector → chamber.
  * Fuel: CH₄, the same. Purge: N₂ bottle → valve → check → chamber. Chamber → throat → ambient.
@@ -74,16 +80,16 @@ export function coldFlowStand() {
       { id: 'amb', kind: 'ambient', p: P_ATM, T: T_AMB, Y: { N2: 0.767, O2: 0.233 } },
     ],
     edges: [
-      { id: 'REG-OX', type: 'regulator', a: 'bot-ox', b: 'man-ox', ...regulatorFixture(0.0388, CdAregOx) },
-      { id: 'PV-OX', type: 'valve', a: 'man-ox', b: 'line-ox', CdAmax: 5 * CDA_OX_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
+      { id: 'PCV-OX-01', type: 'regulator', a: 'bot-ox', b: 'man-ox', ...regulatorFixture(0.0388, CdAregOx) },
+      { id: 'SV-OX-01', type: 'valve', a: 'man-ox', b: 'line-ox', CdAmax: 5 * CDA_OX_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
       { id: 'INJ-OX', type: 'orifice', a: 'line-ox', b: 'chamber', CdA: CDA_OX_INJ },
-      reliefFixture('RV-OX', 'man-ox', CdAregOx, 0.031998, 1.4),
-      { id: 'REG-FU', type: 'regulator', a: 'bot-fu', b: 'man-fu', ...regulatorFixture(0.0139, CdAregFu) },
-      reliefFixture('RV-FU', 'man-fu', CdAregFu, 0.016043, 1.31),
-      { id: 'PV-FU', type: 'valve', a: 'man-fu', b: 'line-fu', CdAmax: 5 * CDA_FU_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
+      reliefFixture('PSV-OX-01', 'man-ox', CdAregOx, 0.031998, 1.4),
+      { id: 'PCV-FU-01', type: 'regulator', a: 'bot-fu', b: 'man-fu', ...regulatorFixture(0.0139, CdAregFu) },
+      reliefFixture('PSV-FU-01', 'man-fu', CdAregFu, 0.016043, 1.31),
+      { id: 'SV-FU-01', type: 'valve', a: 'man-fu', b: 'line-fu', CdAmax: 5 * CDA_FU_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
       { id: 'INJ-FU', type: 'orifice', a: 'line-fu', b: 'chamber', CdA: CDA_FU_INJ },
-      { id: 'PV-N2', type: 'valve', a: 'bot-n2', b: 'line-n2', CdAmax: CDA_FU_INJ, tOpen: 0.02, tClose: 0.02 },
-      { id: 'CV-N2', type: 'check', a: 'line-n2', b: 'chamber', CdA: 2 * CDA_FU_INJ, crack: 3 * PSI, reseat: 1 * PSI },
+      { id: 'SV-N2-01', type: 'valve', a: 'bot-n2', b: 'line-n2', CdAmax: CDA_FU_INJ, tOpen: 0.02, tClose: 0.02 },
+      { id: 'CKV-N2-01', type: 'check', a: 'line-n2', b: 'chamber', CdA: 2 * CDA_FU_INJ, crack: 3 * PSI, reseat: 1 * PSI },
       { id: 'THROAT', type: 'orifice', a: 'chamber', b: 'amb', CdA: CDA_THROAT },
     ],
   };
@@ -91,12 +97,12 @@ export function coldFlowStand() {
 
 /** A sequence over the cold-flow stand (fixture timings, not a proposed sequence). */
 export const COLD_FLOW_SCHEDULE = [
-  { t: 0.0, id: 'PV-N2', cmd: 'open' },
-  { t: 0.3, id: 'PV-N2', cmd: 'close' },
-  { t: 0.4, id: 'PV-OX', cmd: 'open' },
-  { t: 0.45, id: 'PV-FU', cmd: 'open' },
-  { t: 1.2, id: 'REG-OX', cmd: { fault: 'open' } },
-  { t: 1.4, id: 'PV-FU', cmd: 'close' },
-  { t: 1.45, id: 'PV-OX', cmd: 'close' },
-  { t: 1.5, id: 'PV-N2', cmd: 'open' },
+  { t: 0.0, id: 'SV-N2-01', cmd: 'open' },
+  { t: 0.3, id: 'SV-N2-01', cmd: 'close' },
+  { t: 0.4, id: 'SV-OX-01', cmd: 'open' },
+  { t: 0.45, id: 'SV-FU-01', cmd: 'open' },
+  { t: 1.2, id: 'PCV-OX-01', cmd: { fault: 'open' } },
+  { t: 1.4, id: 'SV-FU-01', cmd: 'close' },
+  { t: 1.45, id: 'SV-OX-01', cmd: 'close' },
+  { t: 1.5, id: 'SV-N2-01', cmd: 'open' },
 ];
