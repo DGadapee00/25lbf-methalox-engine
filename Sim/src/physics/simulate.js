@@ -13,6 +13,11 @@
  *   step. The crossing is located by the Illinois variant of regula falsi on the dense output, to
  *   1e-12 of the step, the step is cut there, the mode flips, and integration restarts.
  *
+ * Peaks (opts.trackPeaks): the highest pressure each volume node reaches, found on the dense
+ * output at four points inside every accepted step, so a peak between step ends is not missed.
+ * Returned as out.peaks = { node: { p (Pa), t (s) } }. Off by default: it costs about four extra
+ * state evaluations per step.
+ *
  * Max step: tied to the fastest valve ramp (a quarter of it) so a ramp is never resolved by a
  * single step even when the error estimate would allow it, and to tEnd/20 so a sample grid is
  * never interpolated across one huge step. Stats (steps, rejections, RHS evaluations, events,
@@ -41,7 +46,14 @@ export function simulate(net, opts) {
     return nb;
   };
 
-  const out = { t: [], samples: [], events: [], stats: null };
+  const out = { t: [], samples: [], events: [], stats: null, peaks: null };
+  const vols = sys.nodes.map((n, k) => [n, k]).filter(([n]) => n.kind === 'volume');
+  const peaks = opts.trackPeaks ? Object.fromEntries(vols.map(([n]) => [n.id, { p: -Infinity, t: 0 }])) : null;
+  const yP = new Float64Array(sys.nState);
+  const notePeaks = (tt, yy) => {
+    const st = sys.nodeStates(yy);
+    for (const [n, k] of vols) if (st[k].p > peaks[n.id].p) peaks[n.id] = { p: st[k].p, t: tt };
+  };
   let tSample = 0;
   const yS = new Float64Array(sys.nState);
   const sample = (tt, yy) => {
@@ -71,6 +83,7 @@ export function simulate(net, opts) {
   };
 
   applyCommandsAt(0);
+  if (peaks) notePeaks(0, y);
   // Reconcile discrete modes with the initial state: a check valve that starts with Δp above its
   // crack (or a relief above its set) is open from t = 0. Crossing detection alone would miss it,
   // since there is no crossing. One pass suffices: crack > reseat, so a switched mode is stable.
@@ -136,6 +149,10 @@ export function simulate(net, opts) {
     if (fired < 0) {
       while (tSample <= tNew + 1e-15 && tSample <= tEnd) sample(tSample, solver.dense(tSample, yS)), (tSample += sampleDt);
     }
+    if (peaks) {
+      for (const q of [0.25, 0.5, 0.75]) notePeaks(tOld + q * (tNew - tOld), solver.dense(tOld + q * (tNew - tOld), yP));
+      notePeaks(tNew, y);
+    }
     t = tNew;
     if (sys.nEvents) g0.set(g1);
     h = fired >= 0 ? Math.min(hNext, hTry) : hNext;
@@ -148,6 +165,7 @@ export function simulate(net, opts) {
   if (out.t[out.t.length - 1] < tEnd - 1e-12) sample(tEnd, y);
   const wall = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - wall0;
   out.final = sys.readout(t, y);
+  out.peaks = peaks;
   out.y = y;
   out.sys = sys;
   out.stats = { steps: steps - rejected, rejected, nfev: solver.nfev, events: nEv, wallMs: wall };
