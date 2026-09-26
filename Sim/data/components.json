@@ -1,0 +1,243 @@
+{
+  "source": "PROJECT_PLAN.md §2 (sourced values); everything marked placeholder awaits a datasheet or BOM entry, tracked in issue #6",
+  "generator": "hand-entered",
+  "generated": "2026-09-26",
+  "commit": "97c9add",
+  "note": "GN2 cold-flow stand defaults (Phase 5 step 1), ox-circuit hardware flowing GN2. Values are in the units a datasheet uses; src/data/components.js converts to SI. Every value carries either a source or placeholder:true with the tracking issue. The app labels placeholders on screen.",
+  "parts": {
+    "ambient": {
+      "p": {
+        "value": 101325,
+        "unit": "Pa",
+        "source": "ISO 2533 standard atmosphere (exact)"
+      },
+      "T": {
+        "value": 293.15,
+        "unit": "K",
+        "placeholder": true,
+        "issue": 6,
+        "note": "test-day ambient; replace from the test log"
+      }
+    },
+    "bottle": {
+      "V": {
+        "value": 49.9,
+        "unit": "L",
+        "placeholder": true,
+        "issue": 6,
+        "note": "no bottle selected"
+      },
+      "p0": {
+        "value": 2000,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "fill pressure; brief §4.2 cites 2000–2400 psi bottles"
+      }
+    },
+    "HV-OX-01": {
+      "Cv": {
+        "value": 1.0,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "bottle isolation hand valve"
+      },
+      "tOpen": {
+        "value": 1.0,
+        "unit": "s",
+        "placeholder": true,
+        "issue": 6,
+        "note": "hand operation"
+      },
+      "tClose": {
+        "value": 1.0,
+        "unit": "s",
+        "placeholder": true,
+        "issue": 6
+      }
+    },
+    "hpline": {
+      "V": {
+        "value": 20,
+        "unit": "cm3",
+        "placeholder": true,
+        "issue": 6,
+        "note": "bottle isolation to regulator inlet; an estimate of about 1 m of 1/4-in tube until the as-built volume is known. Below ~10 cm3 this node makes the network stiff (solver.md §2)"
+      }
+    },
+    "PCV-OX-01": {
+      "pSet": {
+        "value": 480,
+        "unit": "psia",
+        "source": "PROJECT_PLAN §2.3 manifold pressure (flowing, at rated flow)"
+      },
+      "mdotRated": {
+        "value": 38.8,
+        "unit": "g/s",
+        "source": "PROJECT_PLAN §2.2 oxidizer flow"
+      },
+      "droop": {
+        "value": 20,
+        "unit": "psi",
+        "placeholder": true,
+        "issue": 6,
+        "note": "lockup − set at rated flow"
+      },
+      "Cv": {
+        "value": 0.2,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "poppet full-open flow capacity"
+      },
+      "tau": {
+        "value": 20,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6,
+        "note": "first-order poppet lag; see solver.md §5 on its limits"
+      }
+    },
+    "PSV-OX-01": {
+      "set": {
+        "value": 600,
+        "unit": "psi",
+        "placeholder": true,
+        "issue": 6,
+        "note": "set Δp; to be fixed with the MEOP decision"
+      },
+      "blowdown": {
+        "value": 0.1,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6
+      },
+      "accumulation": {
+        "value": 0.1,
+        "unit": "1",
+        "source": "Dalton, 2026-09-26: full lift at set + 10%"
+      },
+      "tauLift": {
+        "value": 2,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6,
+        "note": "lift response time; sets the fails-open transient peak"
+      },
+      "sizingMargin": {
+        "value": 1.2,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "C_dA = margin × the build rule's minimum; replaced by the selected relief's rated capacity"
+      }
+    },
+    "SV-OX-01": {
+      "Cv": {
+        "value": 1.4,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "main valve; D-5 open"
+      },
+      "tOpen": {
+        "value": 50,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6
+      },
+      "tClose": {
+        "value": 50,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6
+      },
+      "delay": {
+        "value": 10,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6,
+        "note": "command to motion"
+      }
+    },
+    "SV-OX-02": {
+      "Cv": {
+        "value": 0.3,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "manifold vent"
+      },
+      "tOpen": {
+        "value": 50,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6
+      },
+      "tClose": {
+        "value": 50,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6
+      }
+    },
+    "manifold": {
+      "V": {
+        "value": 20,
+        "unit": "cm3",
+        "placeholder": true,
+        "issue": 6,
+        "note": "regulator outlet to main valve, as built"
+      }
+    },
+    "line": {
+      "V": {
+        "value": 5,
+        "unit": "cm3",
+        "placeholder": true,
+        "issue": 6,
+        "note": "main valve to injector, as built"
+      }
+    },
+    "INJ-OX-01": {
+      "n": {
+        "value": 4,
+        "unit": "1",
+        "source": "PROJECT_PLAN §2.3"
+      },
+      "d": {
+        "value": 1.4,
+        "unit": "mm",
+        "source": "PROJECT_PLAN §2.3"
+      },
+      "Cd": {
+        "value": 0.78,
+        "unit": "1",
+        "source": "brief §4.3 default; uncalibrated until Phase 5 step 2/3",
+        "uncalibrated": true
+      }
+    },
+    "chamber": {
+      "V": {
+        "value": 45,
+        "unit": "cm3",
+        "source": "PROJECT_PLAN §2.2 (≈45 cm³)"
+      }
+    },
+    "THROAT-01": {
+      "d": {
+        "value": 8.0,
+        "unit": "mm",
+        "source": "PROJECT_PLAN §2.2"
+      },
+      "Cd": {
+        "value": 1.0,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "ideal; replace from cold-flow data"
+      }
+    }
+  }
+}
