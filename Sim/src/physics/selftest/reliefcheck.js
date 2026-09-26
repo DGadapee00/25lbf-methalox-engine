@@ -8,9 +8,11 @@
 import { ok, section, recordStats } from './harness.js';
 import { compileNetwork, reliefCdAForFailOpen } from '../network.js';
 import { simulate } from '../simulate.js';
+import { failsOpenPeaks } from '../analysis.js';
+import { nasa7Gas } from '../gas.js';
 import { perfectGasGamma } from '../gas.js';
 import { R_U, PSI } from '../constants.js';
-import { P_BOTTLE, P_MANIFOLD, V_MANIFOLD, T_AMB, DROOP, TAU_REG, CDA_OX_INJ, RELIEF_SET, TAU_LIFT } from './fixtures.js';
+import { P_BOTTLE, P_MANIFOLD, V_MANIFOLD, T_AMB, DROOP, TAU_REG, CDA_OX_INJ, RELIEF_SET, TAU_LIFT, coldFlowStand } from './fixtures.js';
 import { ACCUMULATION_DEFAULT } from '../elements/relief.js';
 
 const W = 0.031998;
@@ -70,4 +72,28 @@ export function run() {
   recordStats('relief rule, undersized relief', small.stats);
   const settledS = small.final.nodes.man.p;
   ok(settledS > 1.05 * pOpen, `a relief at 0.8× the rule does not: the manifold settles at ${(settledS / PSI).toFixed(0)} psia`);
+
+  section('Peak manifold pressure: regulator fails open into a dead-headed manifold (MEOP input)');
+  // The readout the MEOP and component-rating decision needs. Its value depends on the relief's
+  // lift response time and the poppet's; both are fixtures today, so this is a scale, not a
+  // design value. Swept over τ_lift to show how much.
+  const nasa = nasa7Gas(['O2', 'CH4', 'N2']);
+  const sweep = [0.0005, 0.002, 0.008].map((tl) => {
+    const net = coldFlowStand();
+    net.edges.forEach((e) => {
+      if (e.type === 'relief') e.tauLift = tl;
+    });
+    return { tl, res: failsOpenPeaks(net, nasa, { tEnd: 0.3 }) };
+  });
+  for (const { tl, res } of sweep) {
+    for (const r of res) recordStats(`fails-open peak ${r.regulator}, τ_lift ${tl * 1e3} ms`, r.stats);
+    console.log(`        τ_lift ${String(tl * 1e3).padEnd(4)} ms  ` + res.map((r) => `${r.node} peak ${(r.peak / PSI).toFixed(0)} psia, settled ${(r.settled / PSI).toFixed(0)}`).join('  ·  '));
+  }
+  const base = sweep[1].res;
+  ok(base.every((r) => r.peak >= r.settled && r.settled <= r.pFull * (1 + 1e-6)), 'at the fixture τ_lift, each manifold peaks above and settles at or below full-lift pressure');
+  ok(base.every((r) => r.dependsOn.some((d) => d.includes('tauLift')) && r.caveat), 'the readout names what the peak depends on (τ_lift, τ) and carries its caveat');
+  const byReg = (i) => sweep.map((w) => w.res[i].peak);
+  ok([0, 1].every((i) => byReg(i)[0] < byReg(i)[1] && byReg(i)[1] < byReg(i)[2]), 'the peak rises with τ_lift on both circuits (slower lift, higher transient)');
+  const over = (base[0].peak - 101325) / RELIEF_SET;
+  console.log(`        at the 2 ms fixture the ox peak Δp is ${over.toFixed(2)}× the 600 psi set: rate manifold hardware for the transient, not the set (MEOP: PROJECT_PLAN §3 Phase 4)`);
 }

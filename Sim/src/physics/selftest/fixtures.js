@@ -53,8 +53,8 @@ function reliefFixture(id, node, regCdAmax, W, gamma) {
 }
 
 /**
- * Tags follow S-2 (2026-09-26): <ISA letters>-<circuit>-<nn>. Orifices (injector, throat) have
- * no letter code in S-2 yet and keep descriptive ids.
+ * Tags follow S-2 (2026-09-26): <ISA letters>-<circuit>-<nn>; the injector circuits and throat
+ * are engine parts and carry engine-part tags (src/data/tags.js).
  *
  * Two-circuit cold-flow stand with purge, relief and check: every element type, every node kind.
  * Ox: O₂ bottle → regulator → manifold → main valve → line → injector → chamber.
@@ -82,15 +82,15 @@ export function coldFlowStand() {
     edges: [
       { id: 'PCV-OX-01', type: 'regulator', a: 'bot-ox', b: 'man-ox', ...regulatorFixture(0.0388, CdAregOx) },
       { id: 'SV-OX-01', type: 'valve', a: 'man-ox', b: 'line-ox', CdAmax: 5 * CDA_OX_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
-      { id: 'INJ-OX', type: 'orifice', a: 'line-ox', b: 'chamber', CdA: CDA_OX_INJ },
+      { id: 'INJ-OX-01', type: 'orifice', a: 'line-ox', b: 'chamber', CdA: CDA_OX_INJ },
       reliefFixture('PSV-OX-01', 'man-ox', CdAregOx, 0.031998, 1.4),
       { id: 'PCV-FU-01', type: 'regulator', a: 'bot-fu', b: 'man-fu', ...regulatorFixture(0.0139, CdAregFu) },
       reliefFixture('PSV-FU-01', 'man-fu', CdAregFu, 0.016043, 1.31),
       { id: 'SV-FU-01', type: 'valve', a: 'man-fu', b: 'line-fu', CdAmax: 5 * CDA_FU_INJ, tOpen: 0.05, tClose: 0.05, delay: 0.01 },
-      { id: 'INJ-FU', type: 'orifice', a: 'line-fu', b: 'chamber', CdA: CDA_FU_INJ },
+      { id: 'INJ-FU-01', type: 'orifice', a: 'line-fu', b: 'chamber', CdA: CDA_FU_INJ },
       { id: 'SV-N2-01', type: 'valve', a: 'bot-n2', b: 'line-n2', CdAmax: CDA_FU_INJ, tOpen: 0.02, tClose: 0.02 },
       { id: 'CKV-N2-01', type: 'check', a: 'line-n2', b: 'chamber', CdA: 2 * CDA_FU_INJ, crack: 3 * PSI, reseat: 1 * PSI },
-      { id: 'THROAT', type: 'orifice', a: 'chamber', b: 'amb', CdA: CDA_THROAT },
+      { id: 'THROAT-01', type: 'orifice', a: 'chamber', b: 'amb', CdA: CDA_THROAT },
     ],
   };
 }
