@@ -17,8 +17,10 @@
  *     valve      CdAmax (m²), tOpen, tClose (s), delay (s, default 0), x0 (0..1), curve
  *     check      CdA (m²), crack, reseat (Pa, Δp = p_a − p_b), leakCdA (m², default 0), open0
  *     relief     CdA (m²), set (Pa, Δp = p_a − p_b), blowdown (fraction of set), open0
- *     regulator  CdAmax (m²), pSet (Pa), K (1/Pa), tau (s), spe, pSupplyRef (Pa), z0, fault
- *                a = supply side, b = outlet (the pressure it regulates)
+ *     regulator  pSet (Pa, flowing outlet pressure at rated flow), mdotRated (kg/s), droop or
+ *                pLockup (Pa), CdAmax (m²), tau (s), spe, pSupplyRef (Pa), z0, fault
+ *                a = supply side, b = outlet (the pressure it regulates); see elements/regulator.js
+
  *
  * The state vector y (Float64Array) is laid out node by node: for a volume or ambient node,
  * [m_1 … m_ns, U] (kg, J); then one poppet opening z per regulator. Discrete state — valve motion,
@@ -32,7 +34,7 @@
 import { massFractions, massesFromPTY, stateFromMasses, stateFromPTY } from './gas.js';
 import { orificeFlow } from './elements/orifice.js';
 import { valveInit, valvePosition, valveCommand, valvePhi } from './elements/valve.js';
-import { regulatorCmd, regulatorCdA } from './elements/regulator.js';
+import { regulatorDerive, regulatorCmd, regulatorCdA } from './elements/regulator.js';
 
 const TYPES = new Set(['orifice', 'valve', 'check', 'relief', 'regulator']);
 
@@ -65,6 +67,7 @@ export function compileNetwork(net, gas) {
     if (e.type === 'regulator') {
       e.off = off;
       off += 1;
+      e.derived = regulatorDerive(e, initialNodeState(nodes[e.ia]));
     }
   }
   const nState = off;
@@ -73,9 +76,14 @@ export function compileNetwork(net, gas) {
   const disc = edges.map((e) => {
     if (e.type === 'valve') return valveInit(e);
     if (e.type === 'check' || e.type === 'relief') return { open: !!e.open0 };
-    if (e.type === 'regulator') return { fault: e.fault ?? null, pSet: e.pSet };
+    if (e.type === 'regulator') return { fault: e.fault ?? null, pLockup: e.derived.pLockup };
     return {};
   });
+
+  /** A node's state as filled, before any flow: { p, T, gamma, R, … }. */
+  function initialNodeState(n) {
+    return stateFromPTY(gas, n.p, n.T, n.Yv);
+  }
 
   /** Initial state vector. */
   function initialState() {
@@ -191,7 +199,7 @@ export function compileNetwork(net, gas) {
     for (const e of edges) {
       if (e.type !== 'regulator') continue;
       const d = disc[edgeIdx.get(e.id)];
-      const zc = regulatorCmd({ ...e, pSet: d.pSet }, st[e.ib].p, st[e.ia].p);
+      const zc = regulatorCmd(e, e.derived, d.pLockup, st[e.ib].p, st[e.ia].p);
       dy[e.off] = (zc - y[e.off]) / e.tau;
     }
   }
@@ -228,7 +236,8 @@ export function compileNetwork(net, gas) {
     const e = edges[j];
     if (e.type === 'valve') return valveCommand(e, disc[j], t, cmd);
     if (e.type === 'regulator') {
-      if (cmd && 'pSet' in cmd) disc[j].pSet = cmd.pSet;
+      // A new set point moves lockup with it; the droop (and so K) is a property of the regulator.
+      if (cmd && 'pSet' in cmd) disc[j].pLockup = cmd.pSet + e.derived.droop;
       if (cmd && 'fault' in cmd) disc[j].fault = cmd.fault;
       return [t];
     }
@@ -248,7 +257,11 @@ export function compileNetwork(net, gas) {
       const r = { ...flows[j] };
       if (e.type === 'valve') r.x = valvePosition(disc[j], t);
       if (e.type === 'check' || e.type === 'relief') r.open = disc[j].open;
-      if (e.type === 'regulator') r.z = y[e.off];
+      if (e.type === 'regulator') {
+        r.z = y[e.off];
+        r.pLockup = disc[j].pLockup;
+        r.pSet = disc[j].pLockup - e.derived.droop;
+      }
       out.edges[e.id] = r;
     });
     return out;
@@ -294,3 +307,4 @@ export function compileNetwork(net, gas) {
     fastestRamp: valveRamps.length ? Math.min(...valveRamps) : Infinity,
   };
 }
+
