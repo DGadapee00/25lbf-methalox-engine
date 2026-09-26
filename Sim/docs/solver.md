@@ -232,6 +232,32 @@ A network may opt out only with `checks: { reliefOnRegulatedNodes: false, reason
 regulator-dynamics tests do, because a relief would mask the loop they measure. M2's stand
 defaults will not.
 
+## 5c. Readout: peak manifold pressure when a regulator fails open (MEOP input)
+
+`analysis.js` `failsOpenPeaks(net, gas)` runs one scenario per regulator:
+- the regulator is failed open from t = 0;
+- every actuated valve is shut, so the outlet is dead-headed;
+- the manifold starts at the set point.
+
+It reports the **peak manifold pressure** (from in-step peak tracking on the dense output), the
+settled pressure, the full-lift pressure, and the parameters the peak depends on. This is the
+pressure the manifold's transducers, valves and fittings actually see. **Their ratings, and the
+MEOP definition, must cover this transient, not only the relief set pressure.** The Phase 4 leak
+check is at 1.5× MEOP.
+
+On the V-4 fixture it is a strong function of the relief lift time:
+
+| τ_lift | ox peak | fuel peak | settled (both) |
+|---|---|---|---|
+| 0.5 ms | 674 psia | 678 psia | ≈ 660 psia |
+| 2 ms (fixture) | 735 psia | 735 psia | ≈ 660 psia |
+| 8 ms | 916 psia | 892 psia | ≈ 660 psia |
+
+At the fixture τ_lift, the ox peak Δp is about 1.20× the 600 psi set. **This is a warning about
+scale, not a design value.** The peak depends on the relief's lift response and the
+regulator's poppet response, and both are fixtures until real datasheets exist. The readout
+carries that caveat and lists the parameters, so the stand view can show it that way.
+
 ## 6. Finding: the GOX choke margin at the set point (brief §8)
 
 Under the new convention the manifold sits at the set point, 479.8 psia at the nominal run's
