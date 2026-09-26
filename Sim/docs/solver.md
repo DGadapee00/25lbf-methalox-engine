@@ -149,10 +149,16 @@ With the fixture regulator:
   droop, large K).
 - **This two-state model can't go unstable** (ζ > 0 always). Real regulator instability needs a
   third lag (sensing line, dome volume, or poppet mass with little damping). None is modelled.
-- **Dead-headed, there is no outflow (k = 0) and ζ = 1/(2√(aGKτ))**, so a small manifold rings
-  hard. Nothing can bring the pressure back down, so any overshoot past lockup is **trapped**. On
-  20 cm³ with the fixture regulator, ζ ≈ 0.1 and the manifold traps at 919 psia against a
-  500 psia lockup. The self-test asserts that this happens.
+- **Model limitation, not a finding: dead-headed trapping.** Dead-headed there is no outflow
+  (k = 0) and ζ = 1/(2√(aGKτ)), so a small manifold rings hard. Nothing can bring the pressure
+  back down, so any overshoot past lockup is trapped. On 20 cm³ with the fixture regulator
+  (ζ ≈ 0.1) the model traps 919 psia against a 500 psia lockup.
+  - This comes from the **first-order poppet model**. A real regulator's seat, spring and poppet
+    mass close it differently.
+  - It isn't a prediction of hardware. The self-test pins it only so that a model change that
+    alters it gets noticed.
+  - **The poppet lag τ becomes a datasheet parameter once a regulator is selected.** Until then
+    τ = 20 ms is a fixture.
 
 **Where M1's "1191 psia fuel manifold" came from.** That number was a product of the M1
 fixture, not a prediction:
@@ -160,32 +166,67 @@ fixture, not a prediction:
 - the poppet is a **pure first-order lag** (τ = 20 ms, no datasheet behind it) filling a
   20 cm³ volume in about 7 ms.
 
-The fixture now carries a relief on every regulated manifold, and the fuel manifold's dead-headed
-peak is capped at the relief's 614.7 psia opening pressure. Whether real hardware overshoots at
-all depends on the selected regulator's poppet dynamics; Phase 5 step 1 cold flow will say.
+The fixture now carries a relief on every regulated manifold. With the proportional-lift relief
+(§5a), the dead-headed peaks are 668 psia (ox) and 656 psia (fuel), below the 674.7 psia
+full-lift pressure. Whether real hardware overshoots at all depends on the selected regulator's
+poppet dynamics; Phase 5 step 1 cold flow will say.
 
-**Relief chatter.** With the ox regulator failed open, the ox relief cycles about 200 times in
-0.25 s in the V-4 fixture. A snap-acting relief with 10% blowdown on a 20 cm³ manifold does that.
-The model has no lift dynamics or modulation. Chatter is a real relief-valve failure mode
-(seat damage), so it's worth flagging in the M5 fault reports rather than hiding.
+## 5a. Relief valve: proportional lift (changed 2026-09-26)
 
-## 5a. Relief sizing, checked when a network is built
+The on/off relief chattered: about 200 cycles in 0.25 s with the ox regulator failed open in V-4.
+It is replaced by proportional lift (`elements/relief.js`). Lift L ∈ [0, 1] scales the flow
+area:
+- **Rising curve:** lift ramps from 0 at the set pressure to full at **set + accumulation**
+  (10% default, Dalton's decision).
+- **Falling curve:** lift ramps from full at set + accumulation to 0 at **reseat =
+  set·(1 − blowdown)**.
+- **Between the curves the lift holds.** That is the blowdown hysteresis, as a continuous loop
+  rather than a switch.
+
+The lift follows its target through a first-order lag **τ_lift**. That makes it an ODE state
+with no event handling, and keeps the loop continuous in time. τ_lift is the valve's lift
+response time, a datasheet parameter; the fixture uses 2 ms. (This lag is a modelling choice
+added with the change; flag it if a different lift model is wanted.)
+
+What the self-test (V-6) checks:
+- lift begins at set;
+- fed a steady flow, the valve settles on the rising curve at Δp = set·(1 + acc·L*), passing
+  exactly the feed flow;
+- when the feed is cut, it holds L* until Δp reaches the falling curve, then reseats at
+  set·(1 − blowdown);
+- exactly one opening: no chatter.
+
+**Effect on V-4.**
+- Relief state events fell from 452 to 3; the remaining events are the check valve.
+- Steps fell from 14,450 to 11,649. In the regulator-fails-open window specifically, 2,913 fell
+  to 1,055.
+- Each relief opens twice (once on the dead-headed start, once during the upset) and modulates,
+  with peak lift 0.85 on ox and 0.50 on fuel.
+
+M5's chatter reporting reads L(t): repeated openings and closings of the lift. It no longer
+counts switches.
+
+## 5b. Relief sizing, checked when a network is built
 
 Every regulated node must carry relief capacity for its regulator **failing open**.
 `compileNetwork` refuses a network otherwise, naming the regulator and the relief C_dA it needs.
 The rule (`checkReliefs`):
 
 - **Fails-open flow:** C_dA,max from the supply as filled (its highest pressure), into the
-  manifold at the relief's opening pressure.
-- **Capacity:** the reliefs on that node together pass at least that flow **at their set
-  pressure**, with no accumulation allowance.
+  manifold at the relief's full-lift pressure.
+- **Capacity:** the reliefs on that node together pass at least that flow **at full lift, which
+  they reach at set + accumulation (10%)**. So in steady state a failed-open regulator can't push
+  the manifold past set + accumulation.
 - **Downstream assumed shut:** a closed main valve is when a dead-headed manifold is most exposed.
 
-This is deliberately conservative. An allowable accumulation above set (ASME Section VIII
-allows some) is a design decision for Dalton, not a default here.
 `reliefCdAForFailOpen()` gives the minimum C_dA for sizing. Tests check both directions:
-- a relief sized by the rule holds a failed-open, dead-headed manifold at its opening pressure;
-- one at 0.8× lets it climb to 768 psia.
+- a relief sized by the rule settles a failed-open, dead-headed manifold at or below full-lift
+  pressure (674.6 ≤ 674.7 psia);
+- one at 0.8× settles at 843 psia.
+
+The rule is steady-state. On the way there, the manifold peaks at 746.7 psia (+10.7%) while a
+2 ms lift catches up with a manifold that fills in about 7 ms. That transient is set by τ_lift,
+so it is a datasheet question once a relief is selected.
 
 A network may opt out only with `checks: { reliefOnRegulatedNodes: false, reason }`. The
 regulator-dynamics tests do, because a relief would mask the loop they measure. M2's stand

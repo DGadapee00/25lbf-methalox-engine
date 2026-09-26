@@ -62,11 +62,14 @@ downloaded: verify against the printed sources before relying on them.**
 | ρ_water(60 °F) = 999.0 kg/m³ | C_v → C_dA | IAPWS-95 at 15.56 °C, 1 atm (hand-entered; enters as √ρ, so a 0.01% error is 0.005% in C_dA) |
 | 1 US gal = 231 in³ | C_v → C_dA | exact by definition |
 | T_MIN = 20 K | lowest node temperature accepted | design choice (solver guard, not physics) |
+| relief accumulation = 10% of set | full lift at set + 10% (elements/relief.js); relief sizing rule | Dalton's decision, 2026-09-26 |
+| P&ID tags `<ISA letters>-<circuit>-<nn>` | src/data/tags.js | S-2, Dalton's decision, 2026-09-26 |
 
 ## Test fixtures
 
 `src/physics/selftest/fixtures.js` and each suite's fixed parameters (bottle 50 L at 2000 psia,
-20 cm³ manifolds, 5 cm³ lines, regulator 20 psi droop and τ = 20 ms, test tank sizes) are **test
+20 cm³ manifolds, 5 cm³ lines, regulator 20 psi droop and τ = 20 ms, relief τ_lift = 2 ms and
+600 psi set, test tank sizes) are **test
 fixtures**, chosen to exercise the solver. They aren't stand defaults and must not be copied
 into one. The values in that file taken from PROJECT_PLAN (injector geometry, throat, chamber
 volume, 480 psia manifold, 250 psia P_c) cite their section on the line.
