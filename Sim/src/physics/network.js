@@ -247,6 +247,41 @@ export function compileNetwork(net, gas) {
   }
 
   /**
+   * Kink functions: where the right-hand side changes branch without any state changing. The
+   * driver ends a step exactly where one changes sign and restarts the integrator there, as it
+   * does at a breakpoint, so no step linearizes across a kink (a Rosenbrock step would, with a
+   * Jacobian from the wrong side). Per relief: Δp at set, full lift and reseat, and lift meeting
+   * the rising or the falling curve. Per regulator: the command reaching 0 or 1.
+   */
+  const reliefEdges = edges.filter((e) => e.type === 'relief');
+  const regEdges = edges.filter((e) => e.type === 'regulator');
+  const nKinks = 5 * reliefEdges.length + 2 * regEdges.length;
+  function kinks(t, y, out) {
+    const st = nodeStates(y);
+    let k = 0;
+    for (const e of reliefEdges) {
+      const dp = st[e.ia].p - st[e.ib].p;
+      const c = e.curves;
+      const L = y[e.off];
+      const up = Math.max(0, Math.min(1, (dp - e.set) / (c.acc * e.set)));
+      const dn = Math.max(0, Math.min(1, (dp - c.pReseat) / (c.pFull - c.pReseat)));
+      out[k++] = (dp - e.set) / e.set;
+      out[k++] = (dp - c.pFull) / e.set;
+      out[k++] = (dp - c.pReseat) / e.set;
+      out[k++] = up - L;
+      out[k++] = L - dn;
+    }
+    for (const e of regEdges) {
+      const d = disc[edgeIdx.get(e.id)];
+      const pL = d.pLockup + (e.spe ?? 0) * (e.derived.pSupplyRef - st[e.ia].p);
+      const raw = e.derived.K * (pL - st[e.ib].p);
+      out[k++] = raw;
+      out[k++] = raw - 1;
+    }
+    return out;
+  }
+
+  /**
    * A scheduled command: valves take 'open' | 'close' | position; regulators take
    * { pSet } or { fault }. Returns the breakpoints (s) it introduces.
    */
@@ -326,8 +361,8 @@ export function compileNetwork(net, gas) {
   const valveRamps = edges.filter((e) => e.type === 'valve').flatMap((e) => [e.tOpen, e.tClose]).filter((x) => x > 0);
 
   return {
-    gas, nodes, edges, disc, nState, nEvents: eventEdges.length,
-    initialState, rhs, events, fireEvent, command, readout, scales, totals, nodeStates,
+    gas, nodes, edges, disc, nState, nEvents: eventEdges.length, nKinks,
+    initialState, rhs, events, fireEvent, kinks, command, readout, scales, totals, nodeStates,
     fastestRamp: valveRamps.length ? Math.min(...valveRamps) : Infinity,
   };
 }
