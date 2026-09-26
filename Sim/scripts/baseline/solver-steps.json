@@ -1,0 +1,16 @@
+{
+  "_note": "Step counts per self-test simulation, the stiffness canary baseline (see harness.js). Rewrite with `node src/physics/selftest.js --record-steps`, in its own commit, saying why.",
+  "steps": {
+    "V-1 isothermal blowdown": 60,
+    "V-2 adiabatic blowdown": 69,
+    "adiabatic blowdown, NASA-7 N2": 35,
+    "V-4 cold-flow stand sequence": 13007,
+    "V-5 two-tank equalization": 2412,
+    "V-6 relief cycling": 48,
+    "V-6 check valve reverse": 27,
+    "V-6 check valve forward": 46,
+    "regulator linear step, underdamped": 199,
+    "regulator linear step, overdamped": 144,
+    "regulator nominal settling": 263
+  }
+}
