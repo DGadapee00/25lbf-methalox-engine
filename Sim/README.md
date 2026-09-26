@@ -61,6 +61,9 @@ Sim/
 
 - **Physics is pure and headless.** `scripts/check-headless.mjs` fails `npm test` if anything
   under `src/physics/` imports three.js, KaTeX, UI or scene code, or names a browser global.
+- **Never adjust a physical parameter to make the solver faster.** Volumes, C_dA and time
+  constants come from hardware, datasheets or stated placeholders; stiffness is the integrator's
+  job (Ros3, docs/solver.md §2a).
 - **SI inside, always.** Only `src/ui/format.js` converts for display (psia, lbf, g/s, °F).
 - **No number without a source.** Every default carries one (datasheet, CEA run, PROJECT_PLAN
   section, or "placeholder, see issue #N"); see [PROVENANCE.md](PROVENANCE.md).

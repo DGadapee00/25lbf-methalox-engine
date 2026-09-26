@@ -63,7 +63,7 @@
         "unit": "cm3",
         "placeholder": true,
         "issue": 6,
-        "note": "bottle isolation to regulator inlet; an estimate of about 1 m of 1/4-in tube until the as-built volume is known. Below ~10 cm3 this node makes the network stiff (solver.md §2)"
+        "note": "bottle isolation to regulator inlet: about 1 m of 1/4-in tube, a physically plausible run, until the as-built volume is known. Chosen for plausibility, never for solver speed (solver.md §2a)"
       }
     },
     "PCV-OX-01": {
