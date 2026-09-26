@@ -17,6 +17,12 @@
     "regulator nominal settling": 264,
     "regulator nominal, P_c 264 psia": 214,
     "relief rule, sized relief": 143,
-    "relief rule, undersized relief": 159
+    "relief rule, undersized relief": 159,
+    "fails-open peak PCV-OX-01, τ_lift 0.5 ms": 3118,
+    "fails-open peak PCV-FU-01, τ_lift 0.5 ms": 3115,
+    "fails-open peak PCV-OX-01, τ_lift 2 ms": 3114,
+    "fails-open peak PCV-FU-01, τ_lift 2 ms": 3108,
+    "fails-open peak PCV-OX-01, τ_lift 8 ms": 3113,
+    "fails-open peak PCV-FU-01, τ_lift 8 ms": 3107
   }
 }
