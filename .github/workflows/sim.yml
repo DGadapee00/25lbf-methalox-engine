@@ -25,7 +25,7 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,6 +58,9 @@ jobs:
 
       # The dev server is not what Pages publishes. Smoke the build that would go live.
       - run: node scripts/smoke.mjs --preview
+
+      # Every guide lesson, played through the built page.
+      - run: node scripts/course-check.mjs
 
       - uses: actions/upload-artifact@v4
         if: always()

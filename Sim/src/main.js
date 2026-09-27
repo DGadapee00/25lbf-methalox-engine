@@ -11,6 +11,7 @@ import { renderPredict } from './ui/predict.js';
 import { rampColorCVD } from './scene/manim.js';
 import { inspectorHTML } from './ui/inspector.js';
 import { createGuide } from './ui/guide.js';
+import { COURSE } from './data/course.js';
 import { createGlossary } from './ui/glossary.js';
 
 /**
@@ -78,6 +79,9 @@ function renderPanels() {
   st.textContent = STATUS_TEXT[lab.status] || lab.status;
   st.className = `lab-status ${lab.status}`;
   $id('hint').textContent = lab.hint;
+  // The readout bar grows when a cell carries a caveat; the plot and legend sit above it.
+  const rb = document.querySelector('.readout-bar')?.offsetHeight || 84;
+  document.documentElement.style.setProperty('--rb', `${rb}px`);
   const spec = lab.plot(s, c, h);
   $id('plot-panel').hidden = !spec;
   if (spec) drawPlot($id('plot'), spec);
@@ -174,7 +178,10 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!h?.pid) return;
   toNdc(e);
   // A tap shows the inspector (there is no hover on a touch screen); a click on a valve also toggles it.
-  if (e.pointerType !== 'mouse') showInspector(h.pid.inspect(ndc, camera), e.clientX, e.clientY);
+  if (e.pointerType !== 'mouse') {
+    const r = canvas.getBoundingClientRect();
+    showInspector(h.pid.inspect(ndc, camera, { px: 24, w: r.width, h: r.height }), e.clientX, e.clientY);
+  }
   if (!lab?.onPick) return;
   const tag = h.pid.pick(ndc, camera);
   if (tag) {
@@ -222,7 +229,9 @@ canvas.addEventListener('pointermove', (e) => {
   }
   if (t && h.pid.pick(ndc, camera)) canvas.style.cursor = 'pointer';
 });
-canvas.addEventListener('pointerleave', () => showInspector(null));
+// A finger lifting also "leaves"; only a mouse leaving the canvas closes the card. On touch, the
+// next tap elsewhere (or Esc) replaces or closes it.
+canvas.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && showInspector(null));
 
 window.addEventListener('hashchange', () => {
   const { id } = parseHash();
@@ -263,7 +272,17 @@ function frame() {
 
 // The guided path and the first-visit welcome.
 const guide = createGuide({ app, openLab, setMode, refresh: refreshControls, isStand, el: $id('guide') });
+// Desktop: the guide heads the right panel. Phone: the panels stack, so it goes under the header.
+const phone = window.matchMedia('(max-width: 720px)');
+const placeGuide = () => {
+  const el = $id('guide');
+  if (phone.matches) document.querySelector('.brand').after(el);
+  else document.querySelector('.eq-panel').prepend(el);
+};
+placeGuide();
+phone.addEventListener?.('change', placeGuide);
 window.__sim.guide = guide;
+window.__sim.lessonIds = COURSE.map((l) => l.id);
 $id('guide-btn').addEventListener('click', () => (guide.active ? guide.close() : guide.open(guide.index)));
 const glossary = createGlossary($id('glossary'));
 $id('glossary-btn').addEventListener('click', () => glossary.toggle());

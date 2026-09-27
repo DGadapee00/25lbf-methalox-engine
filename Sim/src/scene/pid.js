@@ -397,11 +397,24 @@ export class PidView {
   }
 
   /** What is under the pointer, for the inspector: { kind: 'node' | 'edge' | 'igniter' | 'sensor', id } or null. */
-  inspect(ndc, camera) {
+  inspect(ndc, camera, slack = null) {
     if (!this.group.visible) return null;
     this.raycaster.setFromCamera(ndc, camera);
     const hit = this.raycaster.intersectObjects(this.hits, false)[0];
-    return hit ? hit.object.userData.inspect : null;
+    if (hit || !slack) return hit ? hit.object.userData.inspect : null;
+    // A fingertip is bigger than a symbol on a phone: take the nearest element within slack.px.
+    const v = new THREE.Vector3();
+    let best = null;
+    let bestD = slack.px;
+    for (const m of this.hits) {
+      v.copy(m.position).project(camera);
+      const d = Math.hypot(((v.x - ndc.x) * slack.w) / 2, ((v.y - ndc.y) * slack.h) / 2);
+      if (d < bestD) {
+        bestD = d;
+        best = m.userData.inspect;
+      }
+    }
+    return best;
   }
 
   /** Choke state per orifice, for readouts and the smoke test. */

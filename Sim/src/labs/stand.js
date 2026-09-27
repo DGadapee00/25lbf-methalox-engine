@@ -320,23 +320,30 @@ function standLab(id) {
         h.fresh = true;
       };
       h.client = createSimClient(onMsg);
+      // What the operator last commanded, since the last reset: like the switches on a control
+      // panel. A click right after a reset, before the worker has answered, still counts (the
+      // worker applies commands in order), and a stuck valve still shows what was asked of it.
+      h.cmd = {};
       h.toggle = (tag) => {
-        if (h.mode !== 'operate' || !h.live) return;
+        if (h.mode !== 'operate') return;
         if (igniters.includes(tag)) {
           const g = spec.net.igniters.find((x) => x.id === tag);
-          const on = !!h.live.readout.chambers?.[g.chamber]?.igniter?.on;
-          h.client.command(tag, on ? 'off' : 'on');
+          const on = h.cmd[tag] ? h.cmd[tag] === 'on' : !!h.live?.readout.chambers?.[g.chamber]?.igniter?.on;
+          h.cmd[tag] = on ? 'off' : 'on';
+          h.client.command(tag, h.cmd[tag]);
           return;
         }
         if (!valves.includes(tag)) return;
-        const x = h.live.readout.edges[tag]?.x ?? 0;
-        h.client.command(tag, x > 0.5 ? 'close' : 'open');
+        const open = h.cmd[tag] ? h.cmd[tag] === 'open' : (h.live?.readout.edges[tag]?.x ?? 0) > 0.5;
+        h.cmd[tag] = open ? 'close' : 'open';
+        h.client.command(tag, h.cmd[tag]);
       };
       /** Start again from t = 0: Operate empty, Sequence with the table in play and its faults. */
       h.reset = () => {
         h.history = [];
         h.quiet = [];
         h.live = null;
+        h.cmd = {};
         const s = h.state;
         if (h.mode === 'sequence' && s?.table) h.client.init(id, { sequence: s.table, faults: s.faults.map(({ t, id: tag, cmd }) => ({ t, id: tag, cmd })) });
         else h.client.init(id, {});
@@ -403,6 +410,17 @@ function standLab(id) {
       if (c.readout) h.pid.update({ ...c.readout, measured: c.measured }, 1 / 60, fmtP, fmtF);
       c.choke = h.pid.chokeStates();
       if (hot) c.chamber = c.readout?.chambers?.chamber ?? null;
+      // Valve buttons show position (open: green) and a command still on its way (pending: dashed).
+      if (h.root && s.mode === 'operate') {
+        h.root.querySelectorAll('.valve-btn').forEach((b) => {
+          const tag = b.dataset.valve;
+          const isOpen = igniters.includes(tag) ? !!c.readout?.chambers?.chamber?.igniter?.on : (c.readout?.edges?.[tag]?.x ?? 0) > 0.5;
+          const want = h.cmd[tag] ? h.cmd[tag] === 'open' || h.cmd[tag] === 'on' : isOpen;
+          b.classList.toggle('open', isOpen);
+          b.classList.toggle('pending', want !== isOpen);
+          b.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
+        });
+      }
       const seq = s.mode === 'sequence' ? tableOf(s) : null;
       c.report = h.live?.report ?? null;
       if (seq && h.root) {

@@ -13,10 +13,13 @@ const picked = new Map(); // card id → chosen index, kept while the lab is ope
 export function renderPredict(el, cards, onPick) {
   if (!el) return;
   if (!cards || !cards.length) {
-    el.innerHTML = '';
+    if (el.innerHTML) el.innerHTML = '';
+    el.dataset.html = '';
     return;
   }
-  el.innerHTML = cards
+  // Rebuild only when something changed: an animating lab calls this every frame, and replacing
+  // the buttons under the pointer would swallow the click.
+  const html = cards
     .map((c) => {
       const choice = picked.get(c.id);
       const done = choice !== undefined;
@@ -30,6 +33,10 @@ export function renderPredict(el, cards, onPick) {
       return `<div class="predict-card"><div class="predict-q"><span class="predict-tag">Predict first</span> ${mathText(c.q)}</div><div class="predict-opts">${opts}</div>${verdict}</div>`;
     })
     .join('');
+  if (el.dataset.html !== html) {
+    el.dataset.html = html;
+    el.innerHTML = html;
+  }
   el.onclick = (e) => {
     const b = e.target.closest('button[data-card]');
     if (!b) return;
