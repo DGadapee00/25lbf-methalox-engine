@@ -185,7 +185,7 @@ export function compileNetwork(net, gas) {
   function edgeCdA(e, d, t, y, sa, sb) {
     switch (e.type) {
       case 'orifice':
-        return e.CdA;
+        return d.blockage ? e.CdA * (1 - d.blockage) : e.CdA;
       case 'valve':
         return e.CdAmax * valvePhi(e, valvePosition(d, t));
       case 'check':
@@ -441,8 +441,10 @@ export function compileNetwork(net, gas) {
   }
 
   /**
-   * A scheduled command: valves take 'open' | 'close' | position; regulators take
-   * { pSet } or { fault }. Returns the breakpoints (s) it introduces.
+   * A scheduled command: valves take 'open' | 'close' | position, or { fault: 'stuck' | null };
+   * regulators take { pSet }, { fault: 'open' | 'closed' | { creep } | null } or { jt }; orifices
+   * take { fault: { blockage } | null }; igniters 'on' | 'off' | { fault: 'no-light' | null }.
+   * Returns the breakpoints (s) it introduces.
    */
   function command(t, id, cmd) {
     const g = igniters.find((x) => x.id === id);
@@ -455,7 +457,28 @@ export function compileNetwork(net, gas) {
     const j = edgeIdx.get(id);
     if (j === undefined) throw new Error(`command: unknown edge ${id}`);
     const e = edges[j];
-    if (e.type === 'valve') return valveCommand(e, disc[j], t, cmd);
+    if (e.type === 'valve') {
+      const d = disc[j];
+      if (cmd && typeof cmd === 'object' && 'fault' in cmd) {
+        // Stuck: frozen where it is now, moving or not, and deaf to commands until cleared.
+        if (cmd.fault === 'stuck') {
+          const x = valvePosition(d, t);
+          d.segs = d.segs.filter((s) => s.ts < t);
+          d.segs.push({ ts: t, xs: x, target: x, rate: 0 });
+        }
+        d.stuck = cmd.fault === 'stuck';
+        return [t];
+      }
+      if (d.stuck) return [];
+      return valveCommand(e, d, t, cmd);
+    }
+    if (e.type === 'orifice') {
+      // Blockage: a fraction of the flow area lost (a partly plugged injector: low P_c).
+      const b = cmd?.fault?.blockage ?? (cmd?.fault === null ? 0 : undefined);
+      if (!(b >= 0 && b <= 1)) throw new Error(`command: orifice ${id} takes { fault: { blockage: 0..1 } } or { fault: null }`);
+      disc[j].blockage = b;
+      return [t];
+    }
     if (e.type === 'regulator') {
       // A new set point moves lockup with it; the droop (and so K) is a property of the regulator.
       if (cmd && 'pSet' in cmd) disc[j].pLockup = cmd.pSet + e.derived.droop;
@@ -477,7 +500,11 @@ export function compileNetwork(net, gas) {
     });
     edges.forEach((e, j) => {
       const r = { ...flows[j] };
-      if (e.type === 'valve') r.x = valvePosition(disc[j], t);
+      if (e.type === 'valve') {
+        r.x = valvePosition(disc[j], t);
+        if (disc[j].stuck) r.stuck = true;
+      }
+      if (e.type === 'orifice' && disc[j].blockage) r.blockage = disc[j].blockage;
       if (e.type === 'check') r.open = disc[j].open;
       if (e.type === 'relief') {
         r.lift = Math.max(0, Math.min(1, y[e.off]));
@@ -508,7 +535,8 @@ export function compileNetwork(net, gas) {
         rec.F = tq.F;
         rec.CF = tq.CF;
         rec.mdot = f.mdot;
-        rec.Isp = f.mdot > 0 ? tq.F / (f.mdot * G0) : 0;
+        // I_sp only means something with real flow; below 1 mg/s it is round-off over round-off.
+        rec.Isp = f.mdot > 1e-6 ? tq.F / (f.mdot * G0) : 0;
       }
       out.chambers[c.n.id] = rec;
     }

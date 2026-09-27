@@ -23,8 +23,9 @@ import * as sensors from './selftest/sensors.js';
 import * as valveTiming from './selftest/valveTiming.js';
 import * as injector from './selftest/injector.js';
 import * as hotfire from './selftest/hotfire.js';
+import * as sequencer from './selftest/sequencer.js';
 
-const SUITES = [registry, thermo, integrator, orifice, blowdown, driver, conservation, devices, regulator, reliefcheck, cv, sensors, valveTiming, injector, stand, fullstand, hotfire];
+const SUITES = [registry, thermo, integrator, orifice, blowdown, driver, conservation, devices, regulator, reliefcheck, cv, sensors, valveTiming, injector, stand, fullstand, hotfire, sequencer];
 
 for (const s of SUITES) await s.run();
 await stiffnessReport();

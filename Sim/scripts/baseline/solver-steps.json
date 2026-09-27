@@ -38,6 +38,9 @@
     "V-7 chamber fill small step": 256,
     "chamber fill, igniter on": 205,
     "chamber fill, no-light": 189,
-    "hot-fire fixture run": 2477
+    "hot-fire fixture run": 2477,
+    "M5 fixture, nominal": 2310,
+    "M5 fixture, A-1 triggered": 2915,
+    "M5 fixture, A-2 triggered": 1357
   }
 }

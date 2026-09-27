@@ -156,6 +156,11 @@ export function createRun(net, opts) {
     for (const c of later) bps.add(c.t);
   }
 
+  /** Drop pending (not yet applied) commands for which pred(cmd) is true: an abort cancels the rest of a table. */
+  function cancel(pred) {
+    cmds = cmds.slice(0, ci).concat(cmds.slice(ci).filter((c) => !pred(c)));
+  }
+
   /** Apply a command now (live operation). */
   function command(id, cmd) {
     if (!started) start();
@@ -298,6 +303,7 @@ export function createRun(net, opts) {
       return t;
     },
     schedule,
+    cancel,
     command,
     advance,
     finish,
