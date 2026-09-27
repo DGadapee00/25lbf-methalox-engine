@@ -44,7 +44,10 @@ function compact(s) {
   for (const [k, v] of Object.entries(s.nodes)) p[k] = v.p;
   const m = {};
   for (const [k, v] of Object.entries(s.edges)) m[k] = v.mdot;
-  return { t: s.t, p, m };
+  if (!s.chambers) return { t: s.t, p, m };
+  const F = {};
+  for (const [k, v] of Object.entries(s.chambers)) F[k] = v.F;
+  return { t: s.t, p, m, F };
 }
 
 self.onmessage = (ev) => {

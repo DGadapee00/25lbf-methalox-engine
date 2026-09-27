@@ -20,6 +20,11 @@ export const QUANTITIES = {
   margin: { sym: 'p_0/p', name: 'Choke margin (pressure ratio)', unit: '1', display: 'sig', from: '\\text{choked when } p_0/p \\ge \\left(\\tfrac{\\gamma+1}{2}\\right)^{\\gamma/(\\gamma-1)}' },
   tau: { sym: '\\tau', name: 'Time constant', unit: 's', display: 'fmtTime', from: '\\tau = \\dfrac{V}{C_dA\\,\\Lambda\\sqrt{\\gamma R T}}' },
   x: { sym: 'x', name: 'Valve stem position', unit: '1', display: 'sig', from: '0 shut, 1 open' },
+  F: { sym: 'F', name: 'Thrust', unit: 'N', display: 'fmtF', from: 'F = C_F\\,P_c A_t' },
+  OF: { sym: 'O/F', name: 'Mixture ratio (mass)', unit: '1', display: 'sig', from: 'O/F = \\dot m_{ox}/\\dot m_{fu}' },
+  cstar: { sym: 'c^*', name: 'Characteristic velocity', unit: 'm/s', display: 'sig', from: 'c^* = \\eta_{c^*}\\,c^*_{\\text{CEA}} = P_c A_t/\\dot m' },
+  Isp: { sym: 'I_{sp}', name: 'Specific impulse', unit: 's', display: 'sig', from: 'I_{sp} = F/(\\dot m\\,g_0)' },
+  E: { sym: 'E_u', name: 'Chemical energy of unburned propellant', unit: 'J', display: 'sig', from: 'E_u = \\text{LHV}\\,\\min(m_{CH_4}, m_{O_2}/s)' },
 };
 
 /** Which quantities each lab puts on screen, most important first. */
@@ -31,6 +36,8 @@ export const LAB_UNITS = {
   injector: ['mdot', 'p', 'CdA', 'margin'],
   'gn2-coldflow': ['p', 'mdot', 'T', 'margin', 'CdA'],
   'full-stand': ['p', 'mdot', 'T', 'margin', 'CdA'],
+  'chamber-fill': ['p', 'tau', 'mdot', 'm', 'E', 'cstar', 'F', 'margin'],
+  'hot-fire': ['p', 'F', 'Isp', 'OF', 'mdot', 'T', 'E', 'cstar', 'margin'],
 };
 
 const BASE = ['kg', 'm', 's', 'K'];

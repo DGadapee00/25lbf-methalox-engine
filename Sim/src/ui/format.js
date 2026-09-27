@@ -61,3 +61,16 @@ export function fmtTime(s, digits = 3) {
   if (!Number.isFinite(s)) return '—';
   return Math.abs(s) < 1 ? `${sig(s * 1e3, digits)} ms` : `${sig(s, digits)} s`;
 }
+
+/** Energy, J in: kJ from 1 kJ up. Below 1 mJ it is round-off, shown as 0. */
+export function fmtE(j, digits = 3) {
+  if (!Number.isFinite(j)) return '—';
+  if (Math.abs(j) < 1e-3) return '0 J';
+  return Math.abs(j) >= 1e3 ? `${sig(j / 1e3, digits)} kJ` : `${sig(j, digits)} J`;
+}
+
+/** Small masses, kg in, grams out. Below 1 µg it is round-off, shown as 0. */
+export function fmtGrams(kg, digits = 3) {
+  if (!Number.isFinite(kg)) return '—';
+  return Math.abs(kg) < 1e-9 ? '0 g' : `${sig(kg * 1e3, digits)} g`;
+}

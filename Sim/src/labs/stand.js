@@ -2,7 +2,7 @@ import { defineLab } from './define.js';
 import { PidView } from '../scene/pid.js';
 import { Q } from '../scene/manim.js';
 import { kv, cells, escapeHTML } from '../ui/shared.js';
-import { fmtP, fmtMdot, fmtTime, sig, unitSystem } from '../ui/format.js';
+import { fmtP, fmtMdot, fmtTime, fmtF, fmtT, fmtE, fmtGrams, sig, unitSystem } from '../ui/format.js';
 import { createSimClient } from '../engine/simClient.js';
 import { STANDS } from '../data/stands/index.js';
 import { provenance } from '../data/components.js';
@@ -19,6 +19,10 @@ import { PSI } from '../physics/constants.js';
  * the file only, then quantization). The pipes stay on the true node pressure.
  *
  * Everything here is uncalibrated, and most component values are placeholders (issue #6).
+ *
+ * The hot-fire stand (M4) adds the igniter (a button, and a pickable symbol), a Joule–Thomson
+ * switch per regulator, and the chamber's readouts: P_c, O/F, thrust, I_sp, and the unburned
+ * propellant. It has no sequence file, so its Sequence mode says so and plays nothing.
  */
 const SCALES = [0.1, 0.25, 1, 2, 5];
 const HISTORY_S = 30;
@@ -41,9 +45,13 @@ function downloadCsv(name, text) {
 function standLab(id) {
   const spec = STANDS[id]();
   const valves = spec.net.edges.filter((e) => e.type === 'valve').map((e) => e.id);
+  const igniters = (spec.net.igniters || []).map((g) => g.id);
   const regs = spec.net.edges.filter((e) => e.type === 'regulator');
   const sequence = spec.sequence;
+  const steps = sequence?.steps || [];
+  const rateHz = sequence?.rateHz || 50;
   const channels = channelsOf(spec.sensors || []);
+  const hot = !!spec.net.nodes.find((n) => n.kind === 'chamber');
 
   const provenanceList = () =>
     `<details class="prov"><summary>Placeholders and uncalibrated values (${provenance().length})</summary><ul>${provenance()
@@ -66,13 +74,21 @@ function standLab(id) {
       scrubbing: false,
       pSetPsia: Object.fromEntries(regs.map((r) => [r.id, r.pSet / PSI])),
       fault: Object.fromEntries(regs.map((r) => [r.id, null])),
+      jt: Object.fromEntries(regs.map((r) => [r.id, false])),
     }),
     controls: (s) => {
       const runButtons = `<button type="button" id="st-pause">${s.paused ? 'Resume' : 'Pause'}</button>
       <button type="button" id="st-reset">Reset</button>
       <button type="button" id="st-daq">Download DAQ CSV</button>`;
+      if (s.mode === 'sequence' && !sequence) {
+        return `
+          <h3>Sequence</h3>
+          <p class="note">No sequence file exists for this stand. The hot-fire sequence (valve order, ox lead, igniter timing, purge) is Dalton's design decision (brief §5.4) and has not been written, so the sim does not make one up. Use Operate.</p>
+          ${runButtons}
+          ${provenanceList()}`;
+      }
       if (s.mode === 'sequence') {
-        const rows = (sequence?.steps || [])
+        const rows = steps
           .map((st, i) => `<tr data-step="${i}"><td>${st.t.toFixed(2)} s</td><td>${escapeHTML(st.id)}</td><td>${escapeHTML(String(st.cmd))}</td></tr>`)
           .join('');
         return `
@@ -85,10 +101,11 @@ function standLab(id) {
           ${provenanceList()}`;
       }
       const regControls = regs.map((r) => `<label>${r.id} set point (psia) <input data-pset="${r.id}" type="number" min="50" max="900" step="5" value="${s.pSetPsia[r.id].toFixed(0)}"></label>
-        <label>${r.id} fault <select data-fault="${r.id}"><option value="">none</option><option value="open"${s.fault[r.id] === 'open' ? ' selected' : ''}>fails open</option><option value="closed"${s.fault[r.id] === 'closed' ? ' selected' : ''}>fails closed</option></select></label>`).join('');
+        <label>${r.id} fault <select data-fault="${r.id}"><option value="">none</option><option value="open"${s.fault[r.id] === 'open' ? ' selected' : ''}>fails open</option><option value="closed"${s.fault[r.id] === 'closed' ? ' selected' : ''}>fails closed</option></select></label>
+        ${hot ? `<label class="check"><input type="checkbox" data-jt="${r.id}"${s.jt[r.id] ? ' checked' : ''}> ${r.id} Joule–Thomson cooling</label>` : ''}`).join('');
       return `
         <h3>Operate</h3>
-        <div class="valve-list">${valves.map((v) => `<button type="button" class="valve-btn" data-valve="${v}">${v}</button>`).join('')}</div>
+        <div class="valve-list">${valves.map((v) => `<button type="button" class="valve-btn" data-valve="${v}">${v}</button>`).join('')}${igniters.map((g) => `<button type="button" class="valve-btn igniter-btn" data-valve="${g}">${g}</button>`).join('')}</div>
         ${scaleSelect(s)}
         ${runButtons}
         ${regControls}
@@ -97,7 +114,7 @@ function standLab(id) {
     bind({ state: s, bump, root, handle: h }) {
       h.root = root;
       root.querySelectorAll('.valve-btn').forEach((b) => b.addEventListener('click', () => h.toggle(b.dataset.valve)));
-      root.querySelector('#st-scale').addEventListener('input', (e) => ((s.scale = Number(e.target.value)), bump()));
+      root.querySelector('#st-scale')?.addEventListener('input', (e) => ((s.scale = Number(e.target.value)), bump()));
       root.querySelector('#st-pause').addEventListener('click', (e) => {
         s.paused = !s.paused;
         e.target.textContent = s.paused ? 'Resume' : 'Pause';
@@ -126,6 +143,11 @@ function standLab(id) {
         s.fault[tag] = fl.value || null;
         h.client.command(tag, { fault: s.fault[tag] });
       }));
+      root.querySelectorAll('[data-jt]').forEach((cb) => cb.addEventListener('change', () => {
+        const tag = cb.dataset.jt;
+        s.jt[tag] = cb.checked;
+        h.client.command(tag, { jt: cb.checked });
+      }));
     },
     setMode(s, h, mode) {
       s.mode = mode;
@@ -133,7 +155,7 @@ function standLab(id) {
       h.history = [];
       h.quiet = [];
       h.error = null;
-      h.client.init(id, mode === 'sequence' ? sequence.steps : []);
+      h.client.init(id, mode === 'sequence' ? steps : []);
     },
     init(ctx) {
       const pid = new PidView(ctx.scene);
@@ -152,7 +174,7 @@ function standLab(id) {
           h.history.push(...m.samples);
           const cut = m.t - HISTORY_S;
           while (h.history.length && h.history[0].t < cut) h.history.shift();
-          h.quiet = h.history.length ? measureSeries(h.history.map((x) => ({ t: x.t, p: x.p })), channels) : [];
+          h.quiet = h.history.length ? measureSeries(h.history.map((x) => ({ t: x.t, p: x.p, F: x.F })), channels) : [];
         } else if (m.type === 'error') {
           h.error = m.message;
         }
@@ -160,7 +182,14 @@ function standLab(id) {
       };
       h.client = createSimClient(onMsg);
       h.toggle = (tag) => {
-        if (h.mode !== 'operate' || !valves.includes(tag) || !h.live) return;
+        if (h.mode !== 'operate' || !h.live) return;
+        if (igniters.includes(tag)) {
+          const g = spec.net.igniters.find((x) => x.id === tag);
+          const on = !!h.live.readout.chambers?.[g.chamber]?.igniter?.on;
+          h.client.command(tag, on ? 'off' : 'on');
+          return;
+        }
+        if (!valves.includes(tag)) return;
         const x = h.live.readout.edges[tag]?.x ?? 0;
         h.client.command(tag, x > 0.5 ? 'close' : 'open');
       };
@@ -168,16 +197,16 @@ function standLab(id) {
         h.history = [];
         h.quiet = [];
         h.error = null;
-        h.client.init(id, h.mode === 'sequence' ? sequence.steps : []);
+        h.client.init(id, h.mode === 'sequence' ? steps : []);
       };
       h.seek = (t) => {
         if (h.mode !== 'sequence') return;
         h.client.seek(t);
       };
       h.download = () => {
-        const noisy = h.history.length ? measureSeries(h.history.map((x) => ({ t: x.t, p: x.p })), channels, { seed: NOISE_SEED }) : [];
-        const run = `${id}/${h.mode === 'sequence' ? sequence.id : 'operate'}`;
-        const text = daqCsv({ run, rateHz: sequence.rateHz, channels, rows: noisy, seed: NOISE_SEED });
+        const noisy = h.history.length ? measureSeries(h.history.map((x) => ({ t: x.t, p: x.p, F: x.F })), channels, { seed: NOISE_SEED }) : [];
+        const run = `${id}/${h.mode === 'sequence' && sequence ? sequence.id : 'operate'}`;
+        const text = daqCsv({ run, rateHz, channels, rows: noisy, seed: NOISE_SEED });
         downloadCsv(`${run.replace('/', '-')}.csv`, text);
       };
       return h;
@@ -214,11 +243,12 @@ function standLab(id) {
     },
     syncViews(s, computed, ctx, h) {
       const c = computed[id];
-      if (c.readout) h.pid.update({ ...c.readout, measured: c.measured }, 1 / 60, fmtP);
+      if (c.readout) h.pid.update({ ...c.readout, measured: c.measured }, 1 / 60, fmtP, fmtF);
       c.choke = h.pid.chokeStates();
+      if (hot) c.chamber = c.readout?.chambers?.chamber ?? null;
       if (s.mode === 'sequence' && h.root && sequence) {
         let current = -1;
-        sequence.steps.forEach((st, i) => {
+        steps.forEach((st, i) => {
           if (st.t <= c.t + 1e-9) current = i;
         });
         h.root.querySelectorAll('[data-step]').forEach((el) => el.classList.toggle('now', Number(el.dataset.step) === current));
@@ -247,6 +277,19 @@ function standLab(id) {
         rows.push(kv(`${e.id} $p_0/p$`, sig(r.edges[e.id].margin, 3)));
       }
       for (const one of regs) rows.push(kv(`${one.id} opening $z$`, sig(r.edges[one.id].z, 3)));
+      for (const one of regs) if (r.edges[one.id].jt) rows.push(kv(`${one.id} outlet $T$ (JT)`, fmtT(r.edges[one.id].Tout)));
+      const ch = r.chambers?.chamber;
+      if (ch) {
+        rows.push(kv('chamber', ch.burning ? 'burning' : 'not burning'));
+        if (ch.burning) {
+          rows.push(kv('O/F', sig(ch.OF, 4)));
+          rows.push(kv('$c^*$', `${sig(ch.cstar, 4)} m/s`));
+        }
+        rows.push(kv('$F$', fmtF(ch.F)));
+        rows.push(kv('$I_{sp}$', ch.F > 0 ? `${sig(ch.Isp, 4)} s` : '—'));
+        rows.push(kv('unburned in chamber', `${fmtGrams(ch.unburnedMass)}, ${fmtE(ch.unburnedEnergy)}`));
+        if (ch.lastIgnition) rows.push(kv('at last ignition', `${fmtGrams(ch.lastIgnition.unburnedMass)}, ${fmtE(ch.lastIgnition.unburnedEnergy)}; ${fmtP(ch.lastIgnition.pBefore)} → ${fmtP(ch.lastIgnition.pAfter)}`));
+      }
       return rows.join('');
     },
     readout: (s, computed) => {
@@ -255,6 +298,21 @@ function standLab(id) {
       const r = c.readout;
       const fo = (c.failsOpen || [])[0];
       const foCell = fo && !fo.error ? `${fmtP(fo.peak)} <small class="caveat" title="${escapeHTML(fo.caveat)}">depends on ${escapeHTML(fo.dependsOn.join(', '))}</small>` : fo?.error ? escapeHTML(fo.error) : '…';
+      const ch = r.chambers?.chamber;
+      if (ch) {
+        const ox = r.edges['INJ-OX-01'];
+        const mark = ox.mdot < 1e-6 ? '' : !ox.choked ? 'red' : ox.margin >= 2.2 ? 'green' : 'amber';
+        return cells([
+          ['$P_c$', fmtP(ch.p)],
+          ['O/F', ch.burning ? sig(ch.OF, 3) : '—'],
+          ['$F$', fmtF(ch.F)],
+          ['$I_{sp}$', ch.F > 0 ? `${sig(ch.Isp, 3)} s` : '—'],
+          ['$\\mdot$ ox + fuel', fmtMdot(r.edges['INJ-OX-01'].mdot + r.edges['INJ-FU-01'].mdot)],
+          ['GOX $p_0/p$', `<span class="choke ${mark}">${sig(ox.margin, 3)}</span>`],
+          ['unburned in chamber', fmtE(ch.unburnedEnergy)],
+          ['chamber', ch.burning ? 'burning' : 'not burning'],
+        ]);
+      }
       if (r.nodes['ox-manifold']) {
         const fu = (c.failsOpen || []).find((x) => x.regulator === 'PCV-FU-01');
         const fuCell = fu && !fu.error ? fmtP(fu.peak) : '…';
@@ -280,13 +338,26 @@ function standLab(id) {
     coach: (s, computed) => {
       const c = computed[id];
       const fo = (c.failsOpen || [])[0];
+      if (hot) {
+        const ch = c.readout?.chambers?.chamber;
+        return {
+          title: 'Full stand, hot fire',
+          body: [
+            'Uncalibrated. Most component values are placeholders (issue #6), η_c* = 0.92 is PROJECT_PLAN\'s assumption, and the injector C_d is the one uncalibrated value. It shows how this model of the stand behaves, not what the engine will do.',
+            'There is no hot-fire sequence. Open HV-OX-01 and HV-FU-01, let the manifolds come up, open the main valves, and switch IGN-IG-01 on; the chamber lights when its gas is inside the CH₄/O₂ flammability limits. The order and the timing are yours to try: the real sequence is a design decision the sim does not make.',
+            'At ignition everything unburned in the chamber burns at once. The pressure jump and the energy readout are the hard-start measure (R-4): how much propellant was waiting.',
+            ch?.burning ? `Burning at O/F ${sig(ch.OF, 3)} and ${fmtP(ch.p)}. With the CEA c* this chamber runs above PROJECT_PLAN's 250 psia, and both injectors' choke margins drop below critical (red on the schematic): S-3, the open choke-margin decision, not something the sim settles.` : '',
+            'Joule–Thomson cooling is off by default: the gas reaches the injectors at bottle temperature, as PROJECT_PLAN §2 assumes. Switched on, each regulator delivers its real-gas outlet temperature (CoolProp), and the colder methane raises the fuel flow more than the oxygen, so O/F falls.',
+          ],
+        };
+      }
       return {
         title: id === 'full-stand' ? 'Full stand, cold flow' : 'GN₂ cold flow (Phase 5 step 1)',
         body: [
           'Everything on this stand is uncalibrated and most component values are placeholders (listed in the Setup panel, issue #6). It shows how the stand behaves with those values, not what the hardware will do.',
           'The transducer tags are the lagged, quantized reading. Download DAQ CSV adds the placeholder noise with a fixed seed, in the format in Test_Stand/daq_format.md.',
           id === 'full-stand' ? 'Both propellant bottles and the purge bottle are filled with nitrogen. The fuel circuit uses the fuel injector holes and the fuel regulator design flow. Combustion is a later milestone.' : '',
-          s.mode === 'sequence' ? `Sequence ${sequence.id} opens the oxidizer bottle isolation, then the oxidizer main valve, then vents the oxidizer manifold. The highlighted row is the last command at or before the current time. Drag the timeline to move through the table.` : '',
+          s.mode === 'sequence' && sequence ? `Sequence ${sequence.id} opens the oxidizer bottle isolation, then the oxidizer main valve, then vents the oxidizer manifold. The highlighted row is the last command at or before the current time. Drag the timeline to move through the table.` : '',
           id === 'full-stand' ? 'Phase 5 step 1 and step 3 numbers from this model are in Sim/predictions/phase5.json. They carry the same uncalibrated label as this screen.' : '',
           fo && !fo.error ? `If PCV-OX-01 fails open with the main valve shut, the ox manifold peaks at ${fmtP(fo.peak)} before the relief catches it and settles at ${fmtP(fo.settled)}. Manifold hardware ratings and the MEOP must cover the peak. It depends on the relief lift time and the regulator poppet lag, both placeholders: a scale, not a design value.` : '',
         ],

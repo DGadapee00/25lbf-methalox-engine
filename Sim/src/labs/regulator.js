@@ -2,7 +2,7 @@ import { defineLab } from './define.js';
 import { PidView } from '../scene/pid.js';
 import { Q } from '../scene/manim.js';
 import { kv, cells, eq } from '../ui/shared.js';
-import { fmtP, fmtMdot, fmtTime, sig, unitSystem } from '../ui/format.js';
+import { fmtP, fmtMdot, fmtTime, fmtT, sig, unitSystem } from '../ui/format.js';
 import { simulate } from '../physics/simulate.js';
 import { failsOpenPeaks } from '../physics/analysis.js';
 import { nasa7Gas } from '../physics/gas.js';
@@ -11,6 +11,7 @@ import { stateFromPTY, massFractions } from '../physics/gas.js';
 import { cvToCdA } from '../physics/elements/orifice.js';
 import { PSI, P_ATM } from '../physics/constants.js';
 import { components, injectorCdA } from '../data/components.js';
+import { jtOutletT } from '../physics/jt.js';
 
 /**
  * Regulator (brief §6.1, lab 3): droop, lockup, and fails-open, on the stand's regulator and
@@ -41,6 +42,7 @@ function defaults() {
     Vman: c.manifold.V,
     pSupply: c.bottle.p0,
     pBack: P_ATM,
+    jt: false,
   };
 }
 
@@ -61,7 +63,7 @@ function network(s) {
       { id: 'back', kind: 'ambient', p: s.pBack, T, Y: { N2: 1 }, label: 'back pressure' },
     ],
     edges: [
-      { id: 'PCV-OX-01', type: 'regulator', a: 'bottle', b: 'manifold', CdAmax: regCdA, pSet: s.pSet, mdotRated: c['PCV-OX-01'].mdotRated, droop: s.droop, tau: s.tau, z0: 0 },
+      { id: 'PCV-OX-01', type: 'regulator', a: 'bottle', b: 'manifold', CdAmax: regCdA, pSet: s.pSet, mdotRated: c['PCV-OX-01'].mdotRated, droop: s.droop, tau: s.tau, z0: 0, jt: !!s.jt },
       { id: 'PSV-OX-01', type: 'relief', a: 'manifold', b: 'amb', CdA: reliefCdA, set: psv.set, blowdown: psv.blowdown, accumulation: psv.accumulation, tauLift: psv.tauLift },
       { id: 'SV-OX-01', type: 'valve', a: 'manifold', b: 'back', CdAmax: injectorCdA(c, 'INJ-OX-01'), tOpen: 0, tClose: 0, x0: 1 },
     ],
@@ -81,7 +83,12 @@ function compute(s) {
   const fo = failsOpenPeaks(network({ ...s, case: 'failsopen' }).net, gas, { tEnd: 0.3 })[0];
   return { r, pLockup, pFull, pCrack, peak: r.peaks.manifold, fo, psv };
 }
-const keyOf = (s) => JSON.stringify([s.case, s.pSet, s.droop, s.tau, s.Vman, s.pSupply, s.pBack]);
+const keyOf = (s) => JSON.stringify([s.case, s.pSet, s.droop, s.tau, s.Vman, s.pSupply, s.pBack, s.jt]);
+
+/** Outlet temperature (K) of pure gas `key` throttled from the lab's supply to its set point. */
+function jtOut(key, s) {
+  return jtOutletT([[key, 1]], s.pSupply, components().ambient.T, s.pSet);
+}
 
 export default defineLab({
   id: 'regulator',
@@ -98,7 +105,8 @@ export default defineLab({
     <label>Droop (psi) <input id="rg-droop" type="number" min="1" max="100" step="1" value="${(s.droop / PSI).toFixed(0)}"></label>
     <label>Poppet lag τ (ms) <input id="rg-tau" type="number" min="1" max="200" step="1" value="${(s.tau * 1e3).toFixed(0)}"></label>
     <label>Manifold volume (cm³) <input id="rg-V" type="number" min="2" max="2000" step="1" value="${(s.Vman * 1e6).toFixed(0)}"></label>
-    <p class="note">Regulator droop, lag, C_v and the relief are placeholders (issue #6). Rated flow 38.8 g/s (PROJECT_PLAN §2.2) through the GOX injector area, on GN₂.</p>`,
+    <label class="check"><input id="rg-jt" type="checkbox"${s.jt ? ' checked' : ''}> Joule–Thomson cooling</label>
+    <p class="note">Regulator droop, lag, C_v and the relief are placeholders (issue #6). Rated flow 38.8 g/s (PROJECT_PLAN §2.2) through the GOX injector area, on GN₂. JT: μ_JT from CoolProp (data/props.json), off by default.</p>`,
   bind({ state: s, bump, root }) {
     const on = (id, f) => root.querySelector(id).addEventListener('input', (e) => (f(e.target.value), bump()));
     on('#rg-case', (v) => (s.case = v));
@@ -106,6 +114,7 @@ export default defineLab({
     on('#rg-droop', (v) => (s.droop = Math.max(1, Number(v)) * PSI));
     on('#rg-tau', (v) => (s.tau = Math.max(1, Number(v)) * 1e-3));
     on('#rg-V', (v) => (s.Vman = Math.max(2, Number(v)) * 1e-6));
+    root.querySelector('#rg-jt').addEventListener('change', (e) => ((s.jt = e.target.checked), bump()));
   },
   init(ctx) {
     return { pid: new PidView(ctx.scene), built: '' };
@@ -155,6 +164,7 @@ export default defineLab({
       kv('$p_{\\text{lockup}}$', fmtP(c.pLockup)),
       kv('regulator $\\mdot$', fmtMdot(f.edges['PCV-OX-01'].mdot)),
       kv('relief lift', sig(f.edges['PSV-OX-01'].lift, 3)),
+      kv('manifold $T$', fmtT(f.nodes.manifold.T)),
     ].join('');
   },
   readout: (s, computed) => {
@@ -204,6 +214,20 @@ export default defineLab({
         answer: moved < 0.01 ? 0 : p2 < p1 ? 1 : 2,
         why: `Flowing: ${fmtP(p1)} → ${fmtP(p2)}. p_set is the flowing pressure at rated flow, so near rated flow the manifold stays put and lockup moves instead (${fmtP(c.pLockup)} → ${fmtP(c.pLockup + s.droop)}).`,
       },
+      (() => {
+        // Choked injectors pass ṁ ∝ p₀/√T₀, so at equal manifold pressures O/F scales with √(T_fu/T_ox).
+        const Tamb = components().ambient.T;
+        const Tox = jtOut('O2', s);
+        const Tfu = jtOut('CH4', s);
+        const k = Math.sqrt(Tfu / Tox);
+        return {
+          id: `rg-jt-of-${Math.round(s.pSet)}-${Math.round(s.pSupply)}`,
+          q: 'On the hot-fire stand, switch Joule–Thomson cooling on for both regulators. Does O/F go up or down?',
+          options: ['up', 'down', 'no change (±0.5%)'],
+          answer: Math.abs(k - 1) < 0.005 ? 2 : k > 1 ? 0 : 1,
+          why: `From ${fmtP(s.pSupply)} to ${fmtP(s.pSet)} at ${Tamb} K, GOX leaves at ${sig(Tox, 4)} K and GCH₄ at ${sig(Tfu, 4)} K (μ_JT from CoolProp). Methane cools more, so its choked flow rises more: O/F × ${sig(k, 4)}.`,
+        };
+      })(),
     ];
   },
   plot: (s, computed) => {

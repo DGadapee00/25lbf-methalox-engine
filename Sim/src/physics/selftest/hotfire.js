@@ -239,7 +239,8 @@ function v8andV4() {
     ok(Math.abs(dev) <= ALLOW, `${k}: sim ${(sim[k] * f).toFixed(2)} ${u}, CEA-recomputed plan ${(ref[k] * f).toFixed(2)}, plan ${(plan[k] * f).toFixed(2)}; sim vs CEA plan ${(dev * 100).toFixed(1)}% (≤ 3%), sim vs plan ${(planDev * 100).toFixed(1)}% of which the CEA table accounts for ${(refDev * 100).toFixed(1)}%`);
   }
   const ox = b.edges['INJ-OX-01'];
-  ok(!ox.choked, `finding, not a failure: at this P_c the GOX injector is not choked (p₀/p = ${ox.margin.toFixed(3)}); S-3 is open`);
+  const fu = b.edges['INJ-FU-01'];
+  ok(!ox.choked && !fu.choked, `finding, not a failure: at this P_c neither injector is choked (GOX p₀/p = ${ox.margin.toFixed(3)}, GCH₄ ${fu.margin.toFixed(3)}); S-3 is open`);
 }
 
 export function run() {

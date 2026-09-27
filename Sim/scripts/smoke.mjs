@@ -55,16 +55,26 @@ try {
           return c?.mode === 'operate' && c.readout && c.t < 2;
         }, lab.id, { timeout: 30000 });
       }
-      // Drive the live stand: bottle isolation open, then the main valve, at 5× time.
+      // Drive the live stand: bottle isolation open, then the main valve, at 5× time. The hot-fire
+      // stand opens both propellant circuits and switches the igniter on with the main valves.
+      const hot = lab.id === 'hot-fire';
       await page.waitForFunction((id) => window.__sim.app.computed[id]?.readout, lab.id, { timeout: 20000 });
-      await page.evaluate((id) => {
+      await page.evaluate(([id, hotStand]) => {
         const { app } = window.__sim;
         app.slices[id].scale = 5;
         app.handles[id].toggle('HV-OX-01');
-      }, lab.id);
+        if (hotStand) app.handles[id].toggle('HV-FU-01');
+      }, [lab.id, hot]);
       await page.waitForFunction((id) => window.__sim.app.computed[id].t > 2.5, lab.id, { timeout: 30000 });
-      await page.evaluate((id) => window.__sim.app.handles[id].toggle('SV-OX-01'), lab.id);
-      await page.waitForFunction((id) => window.__sim.app.computed[id].t > 6, lab.id, { timeout: 30000 });
+      await page.evaluate(([id, hotStand]) => {
+        const h = window.__sim.app.handles[id];
+        h.toggle('SV-OX-01');
+        if (hotStand) {
+          h.toggle('SV-FU-01');
+          h.toggle('IGN-IG-01');
+        }
+      }, [lab.id, hot]);
+      await page.waitForFunction((id) => window.__sim.app.computed[id].t > 6, lab.id, { timeout: hot ? 90000 : 30000 });
     }
     await page.waitForTimeout(300);
     const got = await page.evaluate((id) => ({ computed: window.__sim.app.computed, status: document.getElementById('lab-status').textContent }), lab.id);
@@ -79,7 +89,12 @@ try {
       } else if (!(relErr(v, spec.value) <= spec.tol)) mismatches.push({ name: `${lab.id}: ${key}`, got: v, exp: spec.value, tol: spec.tol });
     }
     console.log(`  loaded  ${lab.kind}/${lab.id}`);
-    if (lab.kind === 'stand') {
+    if (lab.id === 'hot-fire') {
+      // No hot-fire table exists; Sequence mode must say so rather than play anything.
+      await page.click('#mode-sequence');
+      await page.waitForFunction(() => /No sequence file exists/.test(document.getElementById('setup').textContent), null, { timeout: 20000 });
+      console.log('  sequence mode on hot-fire says there is no sequence file');
+    } else if (lab.kind === 'stand') {
       // Sequence mode, after the operate baseline: the step-1 table opens HV-OX-01 by itself.
       await page.click('#mode-sequence');
       await page.waitForFunction((id) => {

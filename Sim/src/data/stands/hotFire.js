@@ -110,7 +110,7 @@ export function hotFire(c = components()) {
         'SV-N2-02': [-0.6, YN - 1.5],
         'THROAT-01': [5.4, YC],
       },
-      igniters: { 'IGN-IG-01': [3.0, YC - 1.35] },
+      igniters: { 'IGN-IG-01': [4.1, YC - 1.3] },
     },
     view: { x: -0.7, y: 0.85, z: 30 },
     hint: 'Operate: open HV-OX-01 and HV-FU-01, then the main valves, then switch IGN-IG-01 on. There is no hot-fire sequence: its timings are a design decision not yet made.',
@@ -125,7 +125,7 @@ export function hotFire(c = components()) {
       pressureChannel('PT-N2-01', 'n2-bottle', c, { offset: [0.55, -1.6] }),
       pressureChannel('PT-N2-02', 'n2-manifold', c, { offset: [0.9, -1.6] }),
       pressureChannel('PT-CH-01', 'chamber', c, { offset: [0.2, 1.15] }),
-      forceChannel('LC-CH-01', 'chamber', c, { offset: [1.4, 1.15] }),
+      forceChannel('LC-CH-01', 'chamber', c, { offset: [1.9, 0.95] }),
     ],
   };
 }
