@@ -16,8 +16,6 @@ export const LABS = [
   { id: 'hot-fire', kind: 'stand', title: 'Hot fire', milestone: 'M4' },
 ];
 
-export const COMING = [
-  { title: 'Test mode', milestone: 'M6' },
-];
+export const COMING = [];
 
 export const labById = (id) => LABS.find((l) => l.id === id) || null;

@@ -14,7 +14,8 @@ import { rampColorCVD } from './scene/manim.js';
  * App shell. Deliberately thin: FLUX's main.js is bound to exams, problems and notes, so this was
  * written fresh against the same lab contract (labs/define.js) rather than stripped down.
  *
- * Modes (brief §5.1): Operate, Sequence, Test. Operate and Sequence are live; Test arrives in M6.
+ * Modes (brief §5.1): Operate, Sequence, Test. Operate and Sequence are live; Test (M6) predicts,
+ * imports a DAQ log, overlays and fits (labs/testPanel.js). Sequence and Test belong to stands.
  */
 console.info(`Stand sim build ${__BUILD__.commit}${__BUILD__.subject ? ` — ${__BUILD__.subject}` : ''} (built ${__BUILD__.built})`);
 
@@ -106,7 +107,7 @@ $id('lab-tabs').addEventListener('click', (e) => {
 });
 
 function paintModes() {
-  for (const mode of ['operate', 'sequence']) {
+  for (const mode of ['operate', 'sequence', 'test']) {
     const b = $id(`mode-${mode}`);
     const on = app.mode === mode;
     b.classList.toggle('active', on);
@@ -128,10 +129,10 @@ function isStand(id) {
 }
 
 async function setMode(mode) {
-  if (mode === app.mode && !(mode === 'sequence' && !isStand(app.id))) return;
+  if (mode === app.mode && !(mode !== 'operate' && !isStand(app.id))) return;
   app.mode = mode;
   paintModes();
-  if (mode === 'sequence' && !isStand(app.id)) {
+  if (mode !== 'operate' && !isStand(app.id)) {
     await openLab('gn2-coldflow');
     return;
   }
@@ -143,6 +144,7 @@ async function setMode(mode) {
 
 $id('mode-operate').addEventListener('click', () => setMode('operate'));
 $id('mode-sequence').addEventListener('click', () => setMode('sequence'));
+$id('mode-test').addEventListener('click', () => setMode('test'));
 
 $id('units-toggle').addEventListener('click', () => {
   setUnitSystem(unitSystem() === 'us' ? 'si' : 'us');

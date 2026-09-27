@@ -26,7 +26,7 @@ export function lsb(range, bits) {
 }
 
 /** mulberry32. Returns uniform (0, 1). */
-function mulberry32(seed) {
+export function mulberry32(seed) {
   let a = seed >>> 0;
   return () => {
     a |= 0;
@@ -38,7 +38,7 @@ function mulberry32(seed) {
 }
 
 /** Standard normal via Box–Muller, from a uniform generator. */
-function gaussian(uniform) {
+export function gaussian(uniform) {
   let u = uniform();
   let v = uniform();
   while (u <= 1e-12) u = uniform();
@@ -60,9 +60,11 @@ export function measureSeries(samples, channels, { seed = null } = {}) {
 /**
  * The same observer, one sample at a time, for a sequencer that reads the transducers as the run
  * goes (physics/sequencer.js). push(sample) takes { t, p, F? } in time order and returns
- * { tag: reading }. The first sample starts every channel settled.
+ * { tag: reading }. The first sample starts every channel settled. quantize: false keeps the
+ * lagged reading continuous, for the C_dA fitter (physics/fit.js), whose finite differences a
+ * staircase would defeat.
  */
-export function createObserver(channels, { seed = null } = {}) {
+export function createObserver(channels, { seed = null, quantize: q = true } = {}) {
   const rng = seed == null ? null : mulberry32(seed);
   const y = {};
   const read = (s, ch) => (ch.quantity === 'F' ? s.F?.[ch.node] : s.p[ch.node]);
@@ -80,7 +82,7 @@ export function createObserver(channels, { seed = null } = {}) {
         y[ch.tag] = quiet;
         let v = quiet;
         if (rng && ch.noise > 0) v += ch.noise * gaussian(rng);
-        values[ch.tag] = quantize(v, ch.range, ch.bits);
+        values[ch.tag] = q ? quantize(v, ch.range, ch.bits) : v;
       }
       return values;
     },

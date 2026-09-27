@@ -13,7 +13,10 @@
     "test": "node scripts/check-headless.mjs && node src/physics/selftest.js && node scripts/shell-check.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:prod": "npm run build && node scripts/smoke.mjs --preview",
-    "live": "node scripts/live.mjs"
+    "live": "node scripts/live.mjs",
+    "sweep": "node scripts/sweep.mjs",
+    "predict": "node scripts/predict.mjs",
+    "validate": "node scripts/validate.mjs"
   },
   "dependencies": {
     "katex": "^0.16.47",

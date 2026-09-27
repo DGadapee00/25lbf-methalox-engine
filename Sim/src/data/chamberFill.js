@@ -25,7 +25,9 @@ const circle = (d) => (Math.PI / 4) * d * d;
 /**
  * opts: pUp (Pa, both reservoirs), eta (η_c*), igniter ('on' | 'off' | 'no-light'), step (fraction
  * of each injector's C_dA added at tStep, 0 for none), tStep (s), lead (s: fuel valve opens this
- * long before the ox valve when > 0, after it when < 0).
+ * long before the ox valve when > 0, after it when < 0). For sweeps (physics/sweep.js): Tox, Tfu
+ * (K, reservoir gas temperature, e.g. a regulator's Joule–Thomson outlet) and CdOx, CdFu
+ * (injector C_d per circuit). Each defaults to the stand's value.
  */
 export function chamberFill(opts = {}, c = components()) {
   const gas = nasa7Gas(SPECIES);
@@ -33,8 +35,9 @@ export function chamberFill(opts = {}, c = components()) {
   const pUp = opts.pUp ?? c['PCV-OX-01'].pSet;
   const eta = opts.eta ?? c.chamber.etaCstar;
   const th = c['THROAT-01'];
-  const oxA = injectorCdA(c, 'INJ-OX-01');
-  const fuA = injectorCdA(c, 'INJ-FU-01');
+  // Injector C_d per circuit for sweeps; default the one shared, uncalibrated value.
+  const oxA = injectorCdA(c, 'INJ-OX-01') * ((opts.CdOx ?? c.injector.Cd) / c.injector.Cd);
+  const fuA = injectorCdA(c, 'INJ-FU-01') * ((opts.CdFu ?? c.injector.Cd) / c.injector.Cd);
   const step = opts.step ?? 0;
   const lead = opts.lead ?? 0;
   const inst = (id, a, b, CdAmax, x0) => ({ id, type: 'valve', a, b, CdAmax, tOpen: 0, tClose: 0, x0 });
@@ -58,8 +61,8 @@ export function chamberFill(opts = {}, c = components()) {
     schedule,
     net: {
       nodes: [
-        { id: 'ox-res', kind: 'ambient', p: pUp, T, Y: { O2: 1 }, label: 'GOX at manifold pressure' },
-        { id: 'fu-res', kind: 'ambient', p: pUp, T, Y: { CH4: 1 }, label: 'GCH₄ at manifold pressure' },
+        { id: 'ox-res', kind: 'ambient', p: pUp, T: opts.Tox ?? T, Y: { O2: 1 }, label: 'GOX at manifold pressure' },
+        { id: 'fu-res', kind: 'ambient', p: pUp, T: opts.Tfu ?? T, Y: { CH4: 1 }, label: 'GCH₄ at manifold pressure' },
         { id: 'ox-line', kind: 'volume', V: c.line.V, p: c.ambient.p, T, Y: { N2: 1 }, label: 'ox line', circuit: 'OX' },
         { id: 'fu-line', kind: 'volume', V: c['line-fu'].V, p: c.ambient.p, T, Y: { N2: 1 }, label: 'fuel line', circuit: 'FU' },
         {

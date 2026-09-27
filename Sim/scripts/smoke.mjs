@@ -137,6 +137,23 @@ try {
         return c && c.t > 0.02 && c.t < 0.12 && x < 1e-9;
       }, lab.id, { timeout: 30000 });
       console.log(`  scrub rewound ${lab.id} to before the first command`);
+      if (lab.id === 'gn2-coldflow') {
+        // Test mode (M6): a synthetic log with INJ-OX-01 at 92% of its area, fitted back in the worker.
+        await page.click('#mode-test');
+        await page.waitForFunction(() => window.__sim.app.handles['gn2-coldflow'].test?.s?.mode === 'test', null, { timeout: 20000 });
+        const err = await page.evaluate(async () => {
+          const api = window.__sim.app.handles['gn2-coldflow'].test;
+          api.s.test.synth['INJ-OX-01'] = 92;
+          api.s.test.params = ['INJ-OX-01'];
+          api.s.test.tags = ['PT-OX-03', 'PT-CH-01'];
+          await api.synthetic();
+          await api.fit();
+          const f = api.state.fit;
+          return f ? f.fitted['INJ-OX-01'] / api.state.truth['INJ-OX-01'] - 1 : api.state.error;
+        });
+        if (!(Math.abs(err) < 5e-3)) errors.push(`test mode: fit did not recover INJ-OX-01 (${err})`);
+        else console.log(`  test mode recovered INJ-OX-01 from a synthetic log to ${(err * 100).toFixed(3)}%`);
+      }
     }
   }
 } catch (e) {

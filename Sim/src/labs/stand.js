@@ -11,6 +11,7 @@ import { daqCsv } from '../physics/daq.js';
 import { PSI } from '../physics/constants.js';
 import { expandSequence, sequenceSource } from '../data/sequences.js';
 import { faultTargets, faultCommand, reportMarkdown, renderReport } from '../ui/faults.js';
+import { createTestPanel } from './testPanel.js';
 
 /**
  * Operate and Sequence on a stand (brief §5.1). Operate: click a valve, the netlist runs live in
@@ -68,6 +69,7 @@ function standLab(id) {
     }
   };
   const rateOf = (s) => tableOf(s)?.rateHz || 50;
+  const test = createTestPanel({ id, spec, tableOf });
 
   const provenanceList = () =>
     `<details class="prov"><summary>Placeholders and uncalibrated values (${provenance().length})</summary><ul>${provenance()
@@ -95,8 +97,10 @@ function standLab(id) {
       tableName: spec.sequence ? `Test_Stand/sequences/${spec.sequence.id}.json` : '',
       faults: [],
       faultForm: { target: targets[0]?.tag || '', kind: targets[0]?.kinds[0]?.kind || '', amount: '', at: '' },
+      test: test.defaults(),
     }),
     controls: (s) => {
+      if (s.mode === 'test') return `${test.controls(s)}${provenanceList()}`;
       const runButtons = `<button type="button" id="st-pause">${s.paused ? 'Resume' : 'Pause'}</button>
       <button type="button" id="st-reset">Reset</button>
       <button type="button" id="st-daq">Download DAQ CSV</button>`;
@@ -161,6 +165,16 @@ function standLab(id) {
     },
     bind({ state: s, bump, root, handle: h }) {
       h.root = root;
+      h.state = s;
+      if (s.mode === 'test') {
+        const again = () => {
+          root.innerHTML = this.controls(s);
+          this.bind({ state: s, bump, root, handle: h });
+          bump();
+        };
+        test.bind({ state: s, root, redraw: again, bump });
+        return;
+      }
       root.querySelectorAll('.valve-btn').forEach((b) => b.addEventListener('click', () => h.toggle(b.dataset.valve)));
       root.querySelector('#st-scale')?.addEventListener('input', (e) => ((s.scale = Number(e.target.value)), bump()));
       root.querySelector('#st-pause').addEventListener('click', (e) => {
@@ -341,6 +355,7 @@ function standLab(id) {
         const text = daqCsv({ run, rateHz: rateOf(h.state), channels, rows: noisy, seed: NOISE_SEED });
         downloadCsv(`${run.replace('/', '-')}.csv`, text);
       };
+      h.test = test.api;
       return h;
     },
     enter(ctx, h) {
@@ -354,7 +369,7 @@ function standLab(id) {
       h.toggle(tag);
     },
     tick(dt, s, computed, h) {
-      if (!s.paused && !s.scrubbing) h.client.advance(Math.min(0.1, dt) * s.scale);
+      if (!s.paused && !s.scrubbing && s.mode !== 'test') h.client.advance(Math.min(0.1, dt) * s.scale);
       if (h.fresh) {
         h.fresh = false;
         return true;
@@ -403,6 +418,7 @@ function standLab(id) {
     law: () => ['\\dfrac{dm_k}{dt} = \\sum_{\\text{in}} \\mdot - \\sum_{\\text{out}} \\mdot', '\\dfrac{dU_k}{dt} = \\sum_{\\text{in}} \\mdot\\,h - \\sum_{\\text{out}} \\mdot\\,h'],
     liveRows: (s, computed) => {
       const c = computed[id];
+      if (s.mode === 'test') return test.liveRows(s);
       if (c.error) return kv('error', escapeHTML(c.error));
       if (!c.readout) return kv('status', 'starting the worker…');
       const r = c.readout;
@@ -479,6 +495,7 @@ function standLab(id) {
     },
     coach: (s, computed) => {
       const c = computed[id];
+      if (s.mode === 'test') return test.coach(s);
       const fo = (c.failsOpen || [])[0];
       if (hot) {
         const ch = c.readout?.chambers?.chamber;
@@ -507,6 +524,7 @@ function standLab(id) {
       };
     },
     plot: (s, computed, h) => {
+      if (s.mode === 'test') return test.plot(s);
       const hist = h?.history || [];
       if (!hist.length) return null;
       const [u, f] = unitSystem() === 'us' ? ['psia', PSI] : ['MPa', 1e6];
