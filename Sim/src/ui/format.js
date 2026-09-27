@@ -47,11 +47,13 @@ export function fmtT(k, digits = 4) {
 
 /** Mass flow, kg/s in, g/s out in both systems: the design point is written 52.7 g/s. */
 export function fmtMdot(kgs, digits = 3) {
-  return `${sig(kgs * 1e3, digits)} g/s`;
+  // Below 1 µg/s a flow is round-off in a node that has settled (a shut valve's regularized tail).
+  return Math.abs(kgs) < 1e-9 ? '0 g/s' : `${sig(kgs * 1e3, digits)} g/s`;
 }
 
-/** Force, N in. */
+/** Force, N in. Below 1 mN it is round-off (a chamber at ambient), shown as 0. */
 export function fmtF(n, digits = 3) {
+  if (Math.abs(n) < 1e-3) return system === 'us' ? '0 lbf' : '0 N';
   if (system === 'us') return `${sig(n / LBF, digits)} lbf`;
   return `${sig(n, digits)} N`;
 }

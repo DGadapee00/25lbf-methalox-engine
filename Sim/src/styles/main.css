@@ -106,3 +106,10 @@ button.stand { border-style: dashed; }
   .legend { order: 6; justify-content: center; }
   .legend-note { display: none; }
 }
+
+/* M5: faults and the sequence report */
+.setup h4 { margin: 12px 0 4px; font-size: 13px; }
+.fault-list, .seq-report ul { padding-left: 16px; margin: 4px 0; font-size: 12px; }
+.seq-report .ok { color: var(--ok); }
+.seq-report .bad { color: var(--bad); }
+.setup button.link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 0; margin: 0 0 0 4px; cursor: pointer; }

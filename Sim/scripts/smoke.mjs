@@ -94,6 +94,28 @@ try {
       await page.click('#mode-sequence');
       await page.waitForFunction(() => /No sequence file exists/.test(document.getElementById('setup').textContent), null, { timeout: 20000 });
       console.log('  sequence mode on hot-fire says there is no sequence file');
+      // M5 plumbing: a loaded table with one abort, and a scheduled regulator failure that trips it.
+      // SMOKE FIXTURE: the threshold and the action are test values, not a proposed abort.
+      await page.evaluate(() => {
+        const h = window.__sim.app.handles['hot-fire'];
+        h.loadTable({
+          id: 'smoke-abort',
+          purpose: 'smoke fixture',
+          tEnd: 2,
+          rateHz: 50,
+          steps: [{ t: 0, cmd: { 'HV-OX-01': 'open' } }],
+          aborts: [{ id: 'A-1', when: 'PT-OX-02 > 650 psia for 3 samples', action: 'vent' }],
+          actions: { vent: [{ dt: 0, cmd: { 'SV-OX-02': 'open' } }] },
+          checks: [{ id: 'C-1', expect: 'no abort' }],
+        }, 'smoke fixture');
+        h.state.faults = [{ t: 0.5, id: 'PCV-OX-01', cmd: { fault: 'open' }, label: 'fails open' }];
+        h.reset();
+      });
+      await page.waitForFunction(() => {
+        const c = window.__sim.app.computed['hot-fire'];
+        return c?.report?.abort?.id === 'A-1' && (c.readout?.edges['SV-OX-02']?.x ?? 0) > 0 && c.report.checks[0].pass === false;
+      }, null, { timeout: 60000 });
+      console.log('  a scheduled PCV-OX-01 failure tripped the loaded table\'s abort, which vented the manifold');
     } else if (lab.kind === 'stand') {
       // Sequence mode, after the operate baseline: the step-1 table opens HV-OX-01 by itself.
       await page.click('#mode-sequence');

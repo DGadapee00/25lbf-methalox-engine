@@ -17,7 +17,6 @@ export const LABS = [
 ];
 
 export const COMING = [
-  { title: 'Faults and aborts', milestone: 'M5' },
   { title: 'Test mode', milestone: 'M6' },
 ];
 
