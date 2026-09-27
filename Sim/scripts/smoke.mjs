@@ -167,6 +167,15 @@ try {
   await page.waitForFunction(() => !document.getElementById('inspector').hidden && /manifold/.test(document.getElementById('inspector').textContent), null, { timeout: 10000 });
   console.log('  hovering the manifold opened the inspector');
   await page.evaluate(() => window.__sim.guide.close());
+  // The symbol key: the button beside the pressure scale opens the glossary on its Symbols tab.
+  await page.click('#legend-key');
+  await page.waitForFunction(() => {
+    const g = document.getElementById('glossary');
+    const pane = g.querySelector('[data-gl-pane="symbols"]');
+    return !g.hidden && pane && !pane.hidden && pane.querySelectorAll('.gl-sym svg').length >= 15;
+  }, null, { timeout: 10000 });
+  console.log('  the symbol key opened with the schematic symbols drawn');
+  await page.keyboard.press('Escape');
 } catch (e) {
   errors.push(String(e));
 } finally {

@@ -286,6 +286,7 @@ window.__sim.lessonIds = COURSE.map((l) => l.id);
 $id('guide-btn').addEventListener('click', () => (guide.active ? guide.close() : guide.open(guide.index)));
 const glossary = createGlossary($id('glossary'));
 $id('glossary-btn').addEventListener('click', () => glossary.toggle());
+$id('legend-key').addEventListener('click', () => glossary.toggle(true, 'symbols'));
 const WELCOME = 'standsim.welcome.v1';
 let seen = false;
 try {

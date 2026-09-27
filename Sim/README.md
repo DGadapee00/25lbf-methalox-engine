@@ -33,7 +33,7 @@ Along the way:
 - **Hover (or tap) anything on the schematic** for what it is, its live state, the law it obeys
   and which of its numbers are placeholders.
 - **Predict first** cards ask before they show; the answer is computed by the sim, every time.
-- **Glossary** (`?`) for the terms: choke margin, C_dA, c*, L*, τ_c, O/F, JT, lockup, MEOP, LOC…
+- **Glossary** (`?`) with two tabs. **Symbols** is a key to the schematic: every mark on the P&ID (valves, regulator, relief, check, orifice and its choke dot, vent, bottle, node, chamber, igniter, transducer, colours), drawn from the same geometry as the schematic (`src/scene/symbols.js`). **Terms** covers choke margin, C_dA, c*, L*, τ_c, O/F, JT, lockup, MEOP, LOC… The **Symbol key** button beside the pressure scale opens the Symbols tab.
 - Keys: `Space` pause, `R` reset, `G` guide, `?` glossary, `Esc` close.
 
 The training table the aborts lesson loads (`src/data/trainingTables.js`) has made-up timings
@@ -70,8 +70,8 @@ Sim/
 │   ├── main.js            # app shell: router, lab mount, panels, render loop
 │   ├── labs/              # defineLab() contract, loader; blowdown, orifice, regulator, valve timing, injector, chamber fill, stand, test panel, choke margin
 │   ├── engine/            # router (#/lab/<id>, #/stand/<id>); physics Web Worker and its client
-│   ├── scene/             # three.js: renderer, palette, P&ID view (pid.js)
-│   ├── ui/                # KaTeX helpers, units formatting, plots, predict-first cards, guide, inspector, glossary, faults
+│   ├── scene/             # three.js: renderer, palette, P&ID view (pid.js), shared symbol geometry (symbols.js)
+│   ├── ui/                # KaTeX helpers, units formatting, plots, predict-first cards, guide, inspector, glossary + symbol key, faults
 │   ├── data/              # catalog, units registry, S-2 tags, component loader, sequence loader, stands/, course, glossary, training table
 │   └── physics/           # pure and headless: no DOM, no three.js, no KaTeX
 │       ├── gas.js         # ideal-gas mixtures: NASA-7 or calorically perfect

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { M, Q, fatLine, fatSegments, disposeTree, rampColorCVD } from './manim.js';
 import { parseTag } from '../data/tags.js';
+import { S, CHOKE, edgeShape, pipeGap, VENT, NODE_SHAPES, NODE_LABEL_DROP, NODE_HIT, FLAME, IGNITER, SENSOR_R, ring } from './symbols.js';
 
 /**
  * P&ID view (brief §5.2), the fluid counterpart of FLUX's SchematicView: it draws a stand's
@@ -11,7 +12,8 @@ import { parseTag } from '../data/tags.js';
  *   touches, on the colour-blind-safe ramp (log scale from ambient to the highest node pressure);
  *   a legend shows the scale.
  * - ISA-5.1-style symbols: bowtie valves (actuator box for SV/XV, T handle for HV), regulator with
- *   dome, angle relief with spring, check valve, orifice plate, bottle, chamber, vent.
+ *   dome, angle relief with spring, check valve, orifice plate, bottle, chamber, vent. Their
+ *   geometry lives in scene/symbols.js, which the glossary's symbol key draws from too.
  * - Valve fill shows position; relief fill shows lift.
  * - Choke indicator on every orifice (§5.2): green p₀/p ≥ 2.2, amber choked but below 2.2, red
  *   unchoked.
@@ -22,10 +24,8 @@ import { parseTag } from '../data/tags.js';
  *
  * It reads pressures and flows only; it never computes physics.
  */
-const S = 0.32; // symbol half-size, scene units
 const PIPE_W = 5;
 const OUTLINE = M.white;
-const CHOKE = { green: 0x83c167, amber: 0xf0ac5f, red: 0xfc6255, off: 0x444444 };
 const INK = { OX: Q.ox, FU: Q.fuel, N2: Q.n2, IG: Q.n2, CH: Q.hot };
 
 /** Symbol colour from an S-2 circuit, an engine-part tag, or the stand's single-circuit fallback. */
@@ -137,40 +137,29 @@ export class PidView {
       if (!layout.nodes[n.id]) continue;
       const [x, y] = layout.nodes[n.id];
       const kind = n.kind === 'ambient' ? 'reservoir' : /bottle|tank/.test(n.id) ? 'bottle' : /chamber/.test(n.id) ? 'chamber' : 'junction';
+      const shape = NODE_SHAPES[kind];
       let fill;
-      if (kind === 'bottle') {
-        const w = 0.5;
-        const h = 1.2;
-        fill = add(new THREE.Mesh(new THREE.PlaneGeometry(2 * w, 2 * h), new THREE.MeshBasicMaterial({ color: 0x333333 })));
+      if (shape.plate) {
+        fill = add(new THREE.Mesh(new THREE.PlaneGeometry(...shape.plate), new THREE.MeshBasicMaterial({ color: 0x333333 })));
         fill.position.set(x, y, 0.01);
-        add(fatLine([x - w, y - h, 0.03, x + w, y - h, 0.03, x + w, y + h - 0.3, 0.03, x + 0.2, y + h, 0.03, x - 0.2, y + h, 0.03, x - w, y + h - 0.3, 0.03, x - w, y - h, 0.03], { color: INK[n.circuit] || circuitColor, width: 2.5 }));
-      } else if (kind === 'chamber') {
-        const w = 0.9;
-        const h = 0.55;
-        fill = add(new THREE.Mesh(new THREE.PlaneGeometry(2 * w, 2 * h), new THREE.MeshBasicMaterial({ color: 0x333333 })));
-        fill.position.set(x, y, 0.01);
-        add(fatLine([x - w, y - h, 0.03, x + w * 0.55, y - h, 0.03, x + w, y - 0.15, 0.03, x + w, y + 0.15, 0.03, x + w * 0.55, y + h, 0.03, x - w, y + h, 0.03, x - w, y - h, 0.03], { color: Q.hot, width: 2.5 }));
-        if (n.kind === 'chamber') {
-          // Flame: a hot core inside a red envelope, shown only while the chamber burns.
-          const flame = new THREE.Group();
-          const outer = new THREE.Mesh(new THREE.CircleGeometry(0.42, 28), new THREE.MeshBasicMaterial({ color: Q.hot, transparent: true, opacity: 0.85 }));
-          outer.scale.set(1.5, 0.95, 1);
-          const core = new THREE.Mesh(new THREE.CircleGeometry(0.2, 20), new THREE.MeshBasicMaterial({ color: Q.hotCore, transparent: true, opacity: 0.9 }));
-          core.scale.set(1.6, 0.9, 1);
-          core.position.z = 0.001;
-          flame.add(outer, core);
-          flame.position.set(x, y, 0.02);
-          flame.visible = false;
-          this.flames.push({ id: n.id, flame: add(flame), state: add(label('', x, y - h - 0.78, 'pid-state')) });
-        }
-      } else if (kind === 'reservoir') {
-        const w = 0.5;
-        fill = add(new THREE.Mesh(new THREE.PlaneGeometry(2 * w, 2 * w), new THREE.MeshBasicMaterial({ color: 0x333333 })));
-        fill.position.set(x, y, 0.01);
-        add(fatLine([x - w, y - w, 0.03, x + w, y - w, 0.03, x + w, y + w, 0.03, x - w, y + w, 0.03, x - w, y - w, 0.03], { color: M.grey, width: 2, dashed: true }));
+        const col = { circuit: INK[n.circuit] || circuitColor, hot: Q.hot, grey: M.grey }[shape.ink];
+        for (const l of shape.lines) add(fatLine(place([x, y], [1, 0], l).map((v, i) => (i % 3 === 2 ? 0.03 : v)), { color: col, width: shape.width, dashed: !!shape.dashed }));
       } else {
-        fill = add(new THREE.Mesh(new THREE.CircleGeometry(0.11, 20), new THREE.MeshBasicMaterial({ color: 0x333333 })));
+        fill = add(new THREE.Mesh(new THREE.CircleGeometry(shape.disc.r, 20), new THREE.MeshBasicMaterial({ color: 0x333333 })));
         fill.position.set(x, y, 0.03);
+      }
+      if (kind === 'chamber' && n.kind === 'chamber') {
+        // Flame: a hot core inside a red envelope, shown only while the chamber burns.
+        const flame = new THREE.Group();
+        const outer = new THREE.Mesh(new THREE.CircleGeometry(1, 28), new THREE.MeshBasicMaterial({ color: Q.hot, transparent: true, opacity: 0.85 }));
+        outer.scale.set(FLAME.outer[0], FLAME.outer[1], 1);
+        const core = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: Q.hotCore, transparent: true, opacity: 0.9 }));
+        core.scale.set(FLAME.core[0], FLAME.core[1], 1);
+        core.position.z = 0.001;
+        flame.add(outer, core);
+        flame.position.set(x, y, 0.02);
+        flame.visible = false;
+        this.flames.push({ id: n.id, flame: add(flame), state: add(label('', x, y - NODE_SHAPES.chamber.plate[1] / 2 - 0.78, 'pid-state')) });
       }
       // Bottles, chambers and reservoirs are labelled under their body. A junction can have pipes
       // on all four sides, so its label goes on the diagonal, below and right, clear of any pipe.
@@ -179,9 +168,9 @@ export class PidView {
         ? add(label(n.label || n.id, placed.at[0], placed.at[1], 'pid-node', placed.anchor || [0.5, 0.5]))
         : kind === 'junction'
           ? add(label(n.label || n.id, x + 0.16, y - 0.16, 'pid-node', [0, 0]))
-          : add(label(n.label || n.id, x, y - ({ bottle: 1.55, chamber: 0.85, reservoir: 0.8 }[kind] ?? 0.35), 'pid-node'));
+          : add(label(n.label || n.id, x, y - (NODE_LABEL_DROP[kind] ?? 0.35), 'pid-node'));
       this.nodes.push({ id: n.id, fill, name, kind });
-      const size = { bottle: [1.0, 2.4], chamber: [1.8, 1.1], reservoir: [1.0, 1.0] }[kind];
+      const size = NODE_HIT[kind];
       addHit(size ? new THREE.PlaneGeometry(size[0], size[1]) : new THREE.CircleGeometry(0.3, 16), x, y, { kind: 'node', id: n.id });
     }
 
@@ -195,47 +184,30 @@ export class PidView {
       const L = Math.hypot(dx, dy);
       const dir = [dx / L, dy / L];
       const Mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
-      const gap = e.type === 'orifice' ? 0.08 : S;
+      const gap = pipeGap(e.type);
       const inA = [Mid[0] - dir[0] * gap, Mid[1] - dir[1] * gap];
       const inB = [Mid[0] + dir[0] * gap, Mid[1] + dir[1] * gap];
       const halfA = add(fatLine([A[0], A[1], 0, inA[0], inA[1], 0], { color: 0x555555, width: PIPE_W }));
       const halfB = add(fatLine([inB[0], inB[1], 0, B[0], B[1], 0], { color: 0x555555, width: PIPE_W }));
       const rec = { id: e.id, type: e.type, e, A, B, L, dir, halfA, halfB, fill: null, choke: null, dots: [], phase: 0 };
-      const letters = parseTag(e.id)?.letters;
       const ink = inkOf(e.id, circuitColor);
-      if (e.type === 'valve' || e.type === 'regulator') {
-        const bow = [[[-S, -S * 0.75], [-S, S * 0.75], [0, 0], [-S, -S * 0.75]], [[S, -S * 0.75], [S, S * 0.75], [0, 0], [S, -S * 0.75]]];
-        rec.fill = add(triMesh(Mid, dir, [[[-S, -S * 0.75], [-S, S * 0.75], [0, 0]], [[S, -S * 0.75], [S, S * 0.75], [0, 0]]], 0x222222));
-        for (const b of bow) add(fatLine(place(Mid, dir, b), { color: ink, width: 2 }));
-        if (e.type === 'regulator') {
-          const arc = [];
-          for (let k = 0; k <= 12; k++) arc.push([0.22 * Math.cos((Math.PI * k) / 12), S * 0.3 + 0.22 * Math.sin((Math.PI * k) / 12)]);
-          add(fatLine(place(Mid, dir, [[0, 0], [0, S * 0.3], ...arc]), { color: ink, width: 2 }));
-        } else if (letters === 'HV') {
-          add(fatSegments(segs(Mid, dir, [[[0, 0], [0, S * 1.2]], [[-S * 0.6, S * 1.2], [S * 0.6, S * 1.2]]]), { color: ink, width: 2 }));
-        } else {
-          add(fatSegments(segs(Mid, dir, [[[0, 0], [0, S * 1.0]], [[-S * 0.45, S * 1.0], [S * 0.45, S * 1.0]], [[-S * 0.45, S * 1.6], [S * 0.45, S * 1.6]], [[-S * 0.45, S * 1.0], [-S * 0.45, S * 1.6]], [[S * 0.45, S * 1.0], [S * 0.45, S * 1.6]]]), { color: ink, width: 2 }));
+      const shape = edgeShape(e.type, parseTag(e.id)?.letters);
+      if (shape) {
+        const col = shape.ink === 'white' ? OUTLINE : ink;
+        if (shape.tris) rec.fill = add(triMesh(Mid, dir, shape.tris, 0x222222));
+        for (const l of shape.lines || []) add(fatLine(place(Mid, dir, l), { color: col, width: shape.width }));
+        if (shape.segs) add(fatSegments(segs(Mid, dir, shape.segs), { color: col, width: shape.width }));
+        if (shape.disc) {
+          rec.choke = add(new THREE.Mesh(new THREE.CircleGeometry(shape.disc.r, 20), new THREE.MeshBasicMaterial({ color: CHOKE.off })));
+          const cp = place(Mid, dir, [shape.disc.at]);
+          rec.choke.position.set(cp[0], cp[1], 0.04);
         }
-      } else if (e.type === 'relief') {
-        rec.fill = add(triMesh(Mid, dir, [[[-S, -S * 0.75], [-S, S * 0.75], [0, 0]]], 0x222222));
-        add(fatLine(place(Mid, dir, [[-S, -S * 0.75], [-S, S * 0.75], [0, 0], [-S, -S * 0.75]]), { color: ink, width: 2 }));
-        const zig = [[0, 0]];
-        for (let k = 1; k <= 6; k++) zig.push([(k % 2 ? 1 : -1) * 0.12, k * 0.1]);
-        add(fatLine(place(Mid, dir, zig.map(([v, u]) => [-u, v])), { color: ink, width: 2 }));
-      } else if (e.type === 'check') {
-        add(fatLine(place(Mid, dir, [[-S, -S * 0.7], [-S, S * 0.7], [S * 0.6, 0], [-S, -S * 0.7]]), { color: ink, width: 2 }));
-        add(fatSegments(segs(Mid, dir, [[[S * 0.6, -S * 0.8], [S * 0.6, S * 0.8]]]), { color: ink, width: 2 }));
-      } else if (e.type === 'orifice') {
-        add(fatSegments(segs(Mid, dir, [[[-0.07, -S], [-0.07, S]], [[0.07, -S], [0.07, S]]]), { color: OUTLINE, width: 2.5 }));
-        rec.choke = add(new THREE.Mesh(new THREE.CircleGeometry(0.13, 20), new THREE.MeshBasicMaterial({ color: CHOKE.off })));
-        const cp = place(Mid, dir, [[0, -S - 0.3]]);
-        rec.choke.position.set(cp[0], cp[1], 0.04);
       }
       // Vent symbol at an ambient end.
       for (const end of ['a', 'b']) {
         if (!isVent(e, end)) continue;
         const P = end === 'a' ? A : B;
-        add(fatSegments([P[0] - 0.18, P[1], 0.02, P[0] + 0.18, P[1], 0.02, P[0] - 0.11, P[1] - 0.08, 0.02, P[0] + 0.11, P[1] - 0.08, 0.02, P[0] - 0.04, P[1] - 0.16, 0.02, P[0] + 0.04, P[1] - 0.16, 0.02], { color: M.grey, width: 2 }));
+        add(fatSegments(segs(P, [1, 0], VENT.segs), { color: M.grey, width: VENT.width }));
       }
       // Tag, on the side away from the pipe.
       const tp = e.type === 'relief' ? place(Mid, dir, [[S + 1.0, S + 0.55]]) : place(Mid, dir, [[0, e.type === 'orifice' ? S + 0.35 : S + 0.75]]);
@@ -263,22 +235,22 @@ export class PidView {
       if (!P || !C) continue;
       const [x, y] = P;
       add(fatLine([x, y + 0.3, 0.02, C[0], C[1] - 0.55, 0.02], { color: M.grey, width: 1.5, dashed: true }));
-      const ring = add(fatLine(Array.from({ length: 25 }, (_, k) => [x + 0.3 * Math.cos((2 * Math.PI * k) / 24), y + 0.3 * Math.sin((2 * Math.PI * k) / 24), 0.02]).flat(), { color: M.grey, width: 2 }));
-      const bolt = add(fatLine([x - 0.08, y + 0.2, 0.03, x + 0.06, y + 0.02, 0.03, x - 0.06, y - 0.02, 0.03, x + 0.08, y - 0.2, 0.03], { color: M.grey, width: 2.5 }));
+      const circle = add(fatLine(IGNITER.ring.flatMap(([u, v]) => [x + u, y + v, 0.02]), { color: M.grey, width: 2 }));
+      const bolt = add(fatLine(IGNITER.bolt.flatMap(([u, v]) => [x + u, y + v, 0.03]), { color: M.grey, width: 2.5 }));
       const tag = add(label(g.id, x + 0.45, y, 'pid-tag', [0, 0.5]));
       const hit = new THREE.Mesh(new THREE.CircleGeometry(0.5, 16), new THREE.MeshBasicMaterial({ visible: false }));
       hit.position.set(x, y, 0.05);
       hit.userData.tag = g.id;
       this.picks.push(add(hit));
-      this.igniters.push({ id: g.id, chamber: g.chamber, ring, bolt, tag });
+      this.igniters.push({ id: g.id, chamber: g.chamber, ring: circle, bolt, tag });
       addHit(new THREE.CircleGeometry(0.5, 16), x, y, { kind: 'igniter', id: g.id });
     }
 
     for (const s of stand.sensors || []) {
       const [x, y] = layout.nodes[s.node];
       const [ox, oy] = s.offset;
-      add(fatSegments([x, y, 0.02, x + ox, y + oy - 0.28, 0.02], { color: M.grey, width: 1.5 }));
-      add(fatLine(Array.from({ length: 25 }, (_, k) => [x + ox + 0.28 * Math.cos((2 * Math.PI * k) / 24), y + oy + 0.28 * Math.sin((2 * Math.PI * k) / 24), 0.02]).flat(), { color: M.grey, width: 1.5 }));
+      add(fatSegments([x, y, 0.02, x + ox, y + oy - SENSOR_R, 0.02], { color: M.grey, width: 1.5 }));
+      add(fatLine(ring(x + ox, y + oy, SENSOR_R).flatMap((q) => [...q, 0.02]), { color: M.grey, width: 1.5 }));
       const lab = add(label(`<b>${s.tag}</b><span></span>`, x + ox, y + oy + 0.55, 'pid-sensor'));
       this.sensors.push({ ...s, lab });
       addHit(new THREE.CircleGeometry(0.34, 16), x + ox, y + oy, { kind: 'sensor', id: s.tag });
