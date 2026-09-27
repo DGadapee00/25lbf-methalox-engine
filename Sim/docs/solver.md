@@ -449,6 +449,34 @@ the first-order poppet then traps about 555 psia (§5). With placeholder regulat
 values this is a model statement, not a hardware one, but an overpressure abort threshold below
 that overshoot would trip on every start.
 
+## 6f. Test mode, fitting and sweeps (M6)
+
+**Fitting** (`physics/fit.js`). The residual is the transducer reading, simulated through the
+same observer as the DAQ file (lag, no quantization, which would make the objective a
+staircase), minus the logged one, divided by the channel's full scale. The whole table is re-run
+for every evaluation. Parameters are ln(C_dA), Levenberg–Marquardt with a forward-difference
+Jacobian (step 1e-3). An area whose column is below 1e-3 RMS is refused: on the GN₂ stand the
+integrator's own tolerance noise in that difference is about 2e-4, and a real sensitivity (the
+injector, the throat) is about 4e-2.
+
+The done-when: a synthetic log (the sim with INJ-OX-01 at 92% and THROAT-01 at 97% of their
+areas, through the stand-daq-v1 writer with seeded noise and 16-bit quantization, parsed back)
+is fitted from the stand's values in 6 iterations; both areas come back within 0.009%, inside
+their 0.02% standard errors, and the residuals fall to the placeholder noise (0.05 psi).
+
+**Predictions** are `stand-prediction-v1` records: the table, the stand, the sim commit, the
+component file's stamp and the time, with the quantized readings every channel should show.
+`npm run validate` compares one with a log and writes the VALIDATION.md section, and refuses any
+log whose header says `source: sim`.
+
+**Sweeps** (`physics/sweep.js`) run the chamber-fill network to a steady burn. The S-3 study
+(`sweeps/s3-choke-margin.json`) shows the result that matters for that decision: with the holes as
+drawn the choke margin p₀/P_c does not change with manifold pressure (P_c rises with it), and it
+is 1.82 at η_c* 0.92, below O₂'s critical 1.893; it moves with η_c* (1.90 at 0.88, 1.73 at 0.97).
+Raising the margin at the design flow takes smaller holes and a higher manifold pressure together
+(the dashed line). That is information for the ADR, not a choice. Monte Carlo takes the spreads
+from its config; none is built in.
+
 ## 7. Known limits (M1–M4)
 
 - Ideal gas. No Z(p,T) (v1.1). JT across regulators only, and only when switched on.

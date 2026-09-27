@@ -17,7 +17,8 @@ test step.** Until a component has been calibrated against measured data, it is 
 | M3 Full stand, cold flow | done: two propellant circuits and a purge, all bottles GN₂; sequence table (`Test_Stand/sequences/gn2-step1.json`) and timeline scrub; Phase 5 step 1 and step 3 predictions in `predictions/phase5.json`. Rosenbrock, DAQ CSV, the valve-timing lab and the injector lab are included |
 | M4 Hot fire | done: chamber combustion state from the CEA table (`data/cea_gox_gch4.json`), ignition inside the CH₄/O₂ flammability limits with the unburned-propellant (hard-start) metric, thrust and I_sp, regulator Joule–Thomson (CoolProp). Chamber-fill lab (lab 6) and a hot-fire stand in Operate; no hot-fire sequence is invented. V-7 and V-8 in `npm test`; see [docs/solver.md §6d](docs/solver.md) |
 | M5 Faults and aborts | done: fault injection (valve stuck, regulator open / closed / creep, injector or throat blockage, igniter no-light), the table driver with abort rules read from the transducers, abort actions from the table, checks and a pass/fail report (Sequence mode, Markdown download). Load a sequence file to rehearse it. Format: [Test_Stand/sequence_format.md](../Test_Stand/sequence_format.md). No committed table has aborts yet; the self-test demonstrates the machinery on a labelled fixture |
-| M6–M7 | Test mode, SIL |
+| M6 Test mode | done: predict before test (`npm run predict`, or Test mode's download: a `stand-prediction-v1` record to commit), DAQ import and overlay, C_dA fitting by least squares on the transducer readings (`physics/fit.js`), the VALIDATION.md section writer (`npm run validate`; refuses simulated logs), and sweeps (`npm run sweep -- sweeps/<config>.json`: grid and Monte Carlo). Done-when in `npm test`: a synthetic log with known C_dA is recovered to 0.01%. The S-3 choke-margin study is in `sweeps/output/` |
+| M7 | SIL |
 
 ## Run it
 
@@ -30,6 +31,9 @@ npm run build      # dist/, stamped with /version.json
 npm run smoke      # every lab in headless Chromium, dev server, against scripts/baseline/values.json
 npm run smoke:prod # same, against `vite build` + preview — run this before merging to main
 npm run live       # which commit the deployed site was built from
+npm run predict -- gn2-coldflow            # register a prediction (writes predictions/<date>-…json)
+npm run validate -- --prediction <file> --daq <log.csv> --test <id> [--fit INJ-OX-01 --write]
+npm run sweep -- sweeps/s3-choke-margin.json   # design sweeps: CSV (+ SVG for the S-3 study)
 ```
 
 The smoke test borrows Playwright from `$PLAYWRIGHT_PATH`, this folder's `node_modules`, or the
@@ -58,10 +62,14 @@ Sim/
 │       ├── chamber.js     # combustion chamber: ignition, burning state, thrust, unburned metric
 │       ├── cea.js, jt.js  # CEA table lookup; Joule–Thomson integral over the CoolProp table
 │       ├── sequencer.js   # table driver: steps, aborts on transducer readings, actions, checks
+│       ├── fit.js         # C_dA least squares against a DAQ log
+│       ├── prediction.js  # prediction records, log comparison, VALIDATION section
+│       ├── sweep.js       # grid and Monte Carlo over the chamber-fill network
 │       ├── analysis.js    # derived readouts: fails-open peak manifold pressure
 │       ├── predictions.js # Phase 5 step 1 and step 3 from the cold-flow model
 │       └── selftest/      # npm test suites, one per topic
-├── scripts/               # smoke, headless guard, shell checks, live
+├── scripts/               # smoke, headless guard, shell checks, live; predict, validate, sweep
+├── sweeps/                # sweep configs and their committed outputs (S-3 study)
 ├── tools/                 # offline generators for data/ (Python): nasa7.py, props.py
 ├── data/                  # JSON tables (thermo, CEA, JT, flammability) and stand defaults
 │                          # (components.json), each sourced. The CEA generator lives in
