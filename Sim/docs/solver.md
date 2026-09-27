@@ -477,7 +477,24 @@ Raising the margin at the design flow takes smaller holes and a higher manifold 
 (the dashed line). That is information for the ADR, not a choice. Monte Carlo takes the spreads
 from its config; none is built in.
 
-## 7. Known limits (M1–M4)
+## 6g. SIL (M7, partly: D-7 is open)
+
+`physics/sil.js` runs the plant against any sequencer that answers one tick at a time: in, the time
+and the DAQ readings; out, commands by tag and abort events. Commands act on the tick, so a table
+step between ticks happens at the next one; the table driver schedules steps at their exact times.
+Conformance is therefore judged on outcomes: the same aborts within two sample periods, and the
+same verdict on every check, evaluated by the table driver's own code (`evaluateChecks`).
+
+The reference sequencer, `createTableLogic`, is the table logic behind that interface. It
+conforms in-process (self-test) and as a child process over the `stand-sil-v1` JSON-lines
+protocol (`npm run sil-check`, in CI). It is not firmware: the brief puts the firmware logic after
+D-7, and it will be held to the same check.
+
+The optional lumped wall node is not built. Its wall mass, material and heat-transfer coefficient
+come from D-2 and D-3 and the Phase 1 Bartz analysis, none of which exists yet; a node made only
+of placeholders would print a wall temperature with nothing behind it.
+
+## 7. Known limits (M1–M7)
 
 - Ideal gas. No Z(p,T) (v1.1). JT across regulators only, and only when switched on.
 - NASA-7 N₂ is fitted from 300 K; below that it extrapolates. O₂ and CH₄ are fitted from 200 K.

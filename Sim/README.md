@@ -18,7 +18,7 @@ test step.** Until a component has been calibrated against measured data, it is 
 | M4 Hot fire | done: chamber combustion state from the CEA table (`data/cea_gox_gch4.json`), ignition inside the CH₄/O₂ flammability limits with the unburned-propellant (hard-start) metric, thrust and I_sp, regulator Joule–Thomson (CoolProp). Chamber-fill lab (lab 6) and a hot-fire stand in Operate; no hot-fire sequence is invented. V-7 and V-8 in `npm test`; see [docs/solver.md §6d](docs/solver.md) |
 | M5 Faults and aborts | done: fault injection (valve stuck, regulator open / closed / creep, injector or throat blockage, igniter no-light), the table driver with abort rules read from the transducers, abort actions from the table, checks and a pass/fail report (Sequence mode, Markdown download). Load a sequence file to rehearse it. Format: [Test_Stand/sequence_format.md](../Test_Stand/sequence_format.md). No committed table has aborts yet; the self-test demonstrates the machinery on a labelled fixture |
 | M6 Test mode | done: predict before test (`npm run predict`, or Test mode's download: a `stand-prediction-v1` record to commit), DAQ import and overlay, C_dA fitting by least squares on the transducer readings (`physics/fit.js`), the VALIDATION.md section writer (`npm run validate`; refuses simulated logs), and sweeps (`npm run sweep -- sweeps/<config>.json`: grid and Monte Carlo). Done-when in `npm test`: a synthetic log with known C_dA is recovered to 0.01%. The S-3 choke-margin study is in `sweeps/output/` |
-| M7 | SIL |
+| M7 SIL | partly done, **blocked on D-7** (controller). Done: the plant/sequencer interface as a SIL harness (`physics/sil.js`), the `stand-sil-v1` stdio protocol for a native firmware build or a serial HIL bridge ([Test_Stand/sil_protocol.md](../Test_Stand/sil_protocol.md)), and `npm run sil-check`, which holds any sequencer to the table driver's verdicts; the reference table logic passes it in-process and over stdio. Not done: the firmware logic itself (written after D-7, brief §4.7), the HIL harness hardware side, and the optional wall-temperature node (its inputs, wall material and mass and a Bartz h, do not exist yet: D-2, D-3, Phase 1) |
 
 ## Run it
 
@@ -34,6 +34,7 @@ npm run live       # which commit the deployed site was built from
 npm run predict -- gn2-coldflow            # register a prediction (writes predictions/<date>-…json)
 npm run validate -- --prediction <file> --daq <log.csv> --test <id> [--fit INJ-OX-01 --write]
 npm run sweep -- sweeps/s3-choke-margin.json   # design sweeps: CSV (+ SVG for the S-3 study)
+npm run sil-check [-- <command> <args…>]       # a sequencer over stand-sil-v1 vs the table driver
 ```
 
 The smoke test borrows Playwright from `$PLAYWRIGHT_PATH`, this folder's `node_modules`, or the
@@ -65,6 +66,7 @@ Sim/
 │       ├── fit.js         # C_dA least squares against a DAQ log
 │       ├── prediction.js  # prediction records, log comparison, VALIDATION section
 │       ├── sweep.js       # grid and Monte Carlo over the chamber-fill network
+│       ├── sil.js         # SIL harness, reference table logic, conformance
 │       ├── analysis.js    # derived readouts: fails-open peak manifold pressure
 │       ├── predictions.js # Phase 5 step 1 and step 3 from the cold-flow model
 │       └── selftest/      # npm test suites, one per topic
