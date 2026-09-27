@@ -57,14 +57,67 @@ regularization has a finite but steep slope), and V/(RT·dṁ/dΔp) is of order 
 The cost today is 2 s of cold flow in about 0.5–0.75 s of wall time in Node, which is acceptable
 through M2. It won't be acceptable for M3's full stand, 10 s burns and M6's Monte Carlo sweeps.
 
-**Decision (agreed 2026-09-26): add a linearly implicit Rosenbrock method in M3** (e.g. ROS3P or
-Rodas4, both with dense output) behind the same driver interface. The network is small (tens of states), so a finite-difference Jacobian is cheap.
+**Decision (agreed 2026-09-26), done in M3: a Rosenbrock method, now the default** (§2a). The network is small (tens of states), so a finite-difference Jacobian is cheap.
 Rosenbrock methods need no Newton iteration, which suits the hard events and resets. BDF2 is the
 alternative, but its multistep history has to be restarted at every breakpoint and event, and
 this problem has many of both.
 
 The canary: each self-test simulation's step count is compared with the recorded baseline. It
 warns at 1.5× and fails at 3×. Wall time is printed but never judged.
+
+## 2a. Ros3, the default integrator since M3
+
+`integrate/ros3.js` is a 3-stage, third-order, L-stable Rosenbrock method with an embedded
+second-order error estimate (Sandu, Verwer et al. 1997, as in KPP's Rosenbrock integrator). It
+is linearly implicit, so there is no Newton iteration. Each step:
+- builds a forward-difference Jacobian (one RHS evaluation per state, plus one for ∂f/∂t);
+- factors (1/(hγ) I − J) once;
+- solves three linear systems.
+
+The third stage reuses the second stage's f. Dense output is the cubic Hermite interpolant through
+(y, f) at both ends; f at the new point doubles as the next step's first stage.
+
+**What the self-test checks, rather than trusting the coefficients:**
+- third-order convergence on a nonlinear, time-dependent problem (observed 2.99);
+- third-order dense output (2.95);
+- L-stability (one step at hλ = −10⁸ damps to 3×10⁻⁸);
+- an error estimate that scales as h³ (3.00);
+- the known stiff order reduction to 2 on Prothero–Robinson (2.04), documented rather than hidden;
+- the LU solve on 200 random pivoting systems;
+- V-1 and V-2 against their closed forms on *both* integrators.
+
+Linear invariants still hold exactly, so V-4 and V-5 stay at round-off.
+
+**Two bugs found on the way:**
+1. **Permutation order in the LU solve.** The factorization swaps whole rows, multipliers
+   included, so all interchanges must be applied to b before forward substitution. Interleaving
+   them is wrong once a late pivot moves an eliminated row. A 3×3 test missed it; the network
+   stalled at h = 25 µs.
+2. **Kinks.** See §3, "Kinks".
+
+**Tolerances: each method at its natural one.**
+- Ros3 defaults to rtol 1e-6 (atol 1e-8 of each state's scale). That is about 0.0005 psi at
+  480 psia, well below any transducer.
+- Dormand–Prince defaults to rtol 1e-8.
+- A test that needs tighter asks for it.
+
+Measured on the stands (wall time, Node):
+
+| run | Dormand–Prince 1e-8 | Ros3 1e-6 |
+|---|---|---|
+| GN₂ stand, 7 s cold-flow sequence | 55 466 steps, 1394 ms | 2155 steps, 255 ms |
+| V-4 two-circuit fixture, 2 s | 11 670 steps, 496 ms | 2292 steps, 613 ms (max 2e-5 relative error) |
+
+On the stiff single-circuit stand, Ros3 is 5× faster. On V-4, the Jacobian's cost (about 45 RHS
+evaluations a step) eats most of the gain in steps. The next step there, if it matters, is a
+sparse (column-grouped) Jacobian, not a looser tolerance.
+
+On non-stiff problems at 1e-10, Ros3 takes about 20× more steps than Dormand–Prince, which is
+what a third-order method does. The closed-form checks run on both.
+
+**Rule: never adjust a physical parameter to make the solver faster.** A volume, C_dA or time
+constant is set by the hardware, a datasheet, or a stated placeholder, and never by step counts.
+Stiffness is the integrator's problem: it is what Ros3 is for.
 
 ## 3. Events
 
@@ -88,8 +141,18 @@ warns at 1.5× and fails at 3×. Wall time is printed but never judged.
   quarters h. Accepted states are never non-physical. This was found by running V-4 at
   rtol 1e-4.
 
-The regulator's z_cmd clamp to [0, 1] is a kink that isn't located as an event; the adaptive
-step shrinks through it. It hasn't been a measurable cost (regulator runs: 5–20% rejections).
+**Kinks (M3).** Where the right-hand side changes branch without any state changing, the
+driver locates the crossing on the dense output, ends the step exactly there, and restarts the
+integrator, as at a breakpoint. The kinks are:
+- per relief: Δp at set, full lift and reseat, and lift meeting the rising or the falling curve;
+- per regulator: the command reaching 0 or 1.
+
+After a cut, that kink is ignored for one step, so the zero it sits on is not found again.
+
+Without this, Ros3 linearized across the relief's rising-curve onset with a Jacobian from the
+wrong side: the lift started at 20.76 instead of 20.00 bar, and it settled 10% off its curve.
+Dormand–Prince had shrunk its step through the kinks instead. Both integrators now get the kink
+cuts.
 
 ## 4. Orifice regularization near Δp = 0
 
@@ -279,14 +342,27 @@ driver (`createRun`). The main thread asks for dt × time scale of sim time each
 request in flight at a time, so a slow machine runs slower than real time rather than queueing
 work. The self-test checks that 60 chunks per second with a live command reproduce a batch run.
 
-**Stiffness again, and why the HP line is 20 cm³.** The HP line between the bottle isolation valve
-and the regulator was first a 2 cm³ placeholder. Next to a 50 L bottle through an open C_v 1 hand
-valve it was the stiffest node on the stand: 233 000 steps for 7 s of cold flow, 0.67× real time.
-At 20 cm³ (about 1 m of 1/4-in tube, still a placeholder) the same sequence takes 55 000 steps,
-about 5× faster than real time. The as-built volume replaces it. If that comes out much smaller,
-this is where the Rosenbrock integrator (M3) earns its place.
+**Why the HP line is 20 cm³.** It is about 1 m of 1/4-in tube, a physically plausible
+bottle-to-regulator run. **That is the reason, and the only one.** It is still a placeholder
+until the as-built volume is known (issue #6).
 
-## 7. Known limits (M1–M2)
+History, for honesty: the first placeholder was 2 cm³. That made it the stiffest node on the
+stand (233 000 Dormand–Prince steps for 7 s), and M2 raised it to 20 cm³. Raising a volume for
+speed breaks the rule in §2a; the value is kept because it is plausible, not because it is fast.
+With Ros3, a small as-built volume costs little: stiffness no longer sets the step.
+
+## 6b. Transducers are not states (M3)
+
+A pressure transducer does not push on the gas, so it is not in the ODE. `sensors.js` applies, in
+order, a first-order lag, optional gaussian noise, and uniform quantization over the full-scale
+range. The P&ID tag shows the quiet reading (lag and quantization). Download DAQ CSV adds the
+noise with a fixed seed and writes `stand-daq-v1` (`Test_Stand/daq_format.md`, `daq.js`).
+
+The lag, the ADC width, the noise and each range are placeholders (issue #6), the same way a
+valve's open time is. They are not adjusted to change a step count. Sequence mode plays
+`GN2_STEP1` in `data/stands/gn2Coldflow.js`, the same table the stand self-test runs.
+
+## 7. Known limits (M1–M3)
 
 - Ideal gas. No Z(p,T) (v1.1), no Joule–Thomson cooling across the regulator (M4).
 - NASA-7 N₂ is fitted from 300 K; below that it extrapolates. O₂ and CH₄ are fitted from 200 K.

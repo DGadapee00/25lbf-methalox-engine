@@ -7,7 +7,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { createServer } from 'vite';
+import { createServer, preview } from 'vite';
 import { chromium } from './playwright.mjs';
 import { LABS } from '../src/data/catalog.js';
 
@@ -15,8 +15,13 @@ const outDir = path.resolve('scripts/output');
 fs.mkdirSync(outDir, { recursive: true });
 const baseline = JSON.parse(fs.readFileSync(path.resolve('scripts/baseline/values.json'), 'utf8'));
 
-const server = await createServer({ server: { port: 5199, strictPort: true, open: false }, logLevel: 'error' });
-await server.listen();
+// `--preview` serves Sim/dist (vite build). That is the check before a merge to main, which publishes
+// the production build. The default serves the dev server, for a fast local loop.
+const usePreview = process.argv.includes('--preview');
+const server = usePreview
+  ? await preview({ preview: { port: 5199, strictPort: true }, logLevel: 'error' })
+  : await createServer({ server: { port: 5199, strictPort: true, open: false }, logLevel: 'error' });
+if (!usePreview) await server.listen();
 const base = 'http://localhost:5199/';
 
 const browser = await chromium.launch({ headless: true });
@@ -65,6 +70,16 @@ try {
       } else if (!(relErr(v, spec.value) <= spec.tol)) mismatches.push({ name: `${lab.id}: ${key}`, got: v, exp: spec.value, tol: spec.tol });
     }
     console.log(`  loaded  ${lab.kind}/${lab.id}`);
+    if (lab.id === 'gn2-coldflow') {
+      // Sequence mode, after the operate baseline: the step-1 table opens HV-OX-01 by itself.
+      await page.click('#mode-sequence');
+      await page.waitForFunction((id) => {
+        const c = window.__sim.app.computed[id];
+        const x = c?.readout?.edges['HV-OX-01']?.x ?? 0;
+        return c?.mode === 'sequence' && c.t > 0.15 && c.t < 1.2 && x > 0;
+      }, lab.id, { timeout: 20000 });
+      console.log('  sequence opened HV-OX-01 from the table');
+    }
   }
 } catch (e) {
   errors.push(String(e));

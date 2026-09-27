@@ -6,6 +6,7 @@
 import { approx, ok, section } from './harness.js';
 import { flux, regFlux, criticalRatio, chokedFlux, LIN_FRAC, orificeFlow } from '../elements/orifice.js';
 import { R_U, PSI } from '../constants.js';
+import { components, injectorCdA } from '../../data/components.js';
 
 export function run() {
   section('V-3 · orifice law: choke point, Δp → 0, incompressible limit');
@@ -47,8 +48,10 @@ export function run() {
   ok(fwd.choked && Math.abs(fwd.margin - 2) < 1e-12, 'reports choked and margin p_up/p_down');
 
   section('V-9 · PROJECT_PLAN §2.3 hand check');
-  // 4 × ⌀1.4 mm GOX at 480 psia, 293 K, C_d ≈ 0.77 → 38.8 g/s (PROJECT_PLAN §2.2 ox flow).
-  const A = 4 * (Math.PI / 4) * 1.4e-3 ** 2;
-  const mdot = 0.77 * A * chokedFlux(480 * PSI, 293, 1.4, R_U / 0.031998);
-  approx(mdot, 0.0388, 0.005, `4×⌀1.4 mm GOX, 480 psia, 293 K, C_d 0.77 → ${(mdot * 1e3).toFixed(2)} g/s ≈ 38.8 g/s (0.5%)`);
+  // 4 × ⌀1.4 mm GOX at 480 psia, 293 K, C_d ≈ 0.77 → 38.8 g/s (PROJECT_PLAN §2.2 ox flow). The
+  // geometry and C_d are read from components.json, the same values the labs and the stand use.
+  const c = components();
+  const mdot = injectorCdA(c, 'INJ-OX-01') * chokedFlux(480 * PSI, 293, 1.4, R_U / 0.031998);
+  approx(mdot, 0.0388, 0.005, `INJ-OX-01 from components.json (C_d ${c.injector.Cd}), 480 psia, 293 K → ${(mdot * 1e3).toFixed(2)} g/s ≈ 38.8 g/s (0.5%)`);
+  ok(c.injector.Cd === 0.77, 'components.json carries the one injector C_d, 0.77 (V-9)');
 }

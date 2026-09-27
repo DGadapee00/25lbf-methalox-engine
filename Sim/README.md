@@ -13,8 +13,9 @@ test step.** Until a component has been calibrated against measured data, it is 
 |---|---|
 | M0 Scaffold | done: app shell, tests, CI, Pages deploy |
 | M1 Component library + network solver (headless) | done: V-1 to V-6 (plus V-3, V-9, regulator settling); see [docs/solver.md](docs/solver.md) |
-| M2 Component labs + P&ID view, GN₂ cold-flow stand in Operate mode | this: Blowdown, Orifice, Regulator labs; live stand in a Web Worker |
-| M2–M7 | see the brief's §6 |
+| M2 Component labs + P&ID view, GN₂ cold-flow stand in Operate mode | done: Blowdown, Orifice, Regulator; live stand in a Web Worker |
+| M3 Ros3, sensors, Sequence, valve timing, injector | this: Rosenbrock default; DAQ CSV (`Test_Stand/daq_format.md`); Sequence mode on the step-1 table; Valve timing and Injector labs |
+| M4–M7 | chamber fill onward; the two-circuit full stand is still ahead |
 
 ## Run it
 
@@ -24,7 +25,8 @@ npm install
 npm start          # dev server on http://localhost:5175
 npm test           # headless guard + physics self-test + shell checks
 npm run build      # dist/, stamped with /version.json
-npm run smoke      # every lab in headless Chromium against scripts/baseline/values.json
+npm run smoke      # every lab in headless Chromium, dev server, against scripts/baseline/values.json
+npm run smoke:prod # same, against `vite build` + preview — run this before merging to main
 npm run live       # which commit the deployed site was built from
 ```
 
@@ -38,7 +40,7 @@ Sim/
 ├── index.html, vite.config.js, package.json
 ├── src/
 │   ├── main.js            # app shell: router, lab mount, panels, render loop
-│   ├── labs/              # defineLab() contract, loader; blowdown, orifice, regulator, stand
+│   ├── labs/              # defineLab() contract, loader; blowdown, orifice, regulator, valve timing, injector, stand
 │   ├── engine/            # router (#/lab/<id>, #/stand/<id>); physics Web Worker and its client
 │   ├── scene/             # three.js: renderer, palette, P&ID view (pid.js)
 │   ├── ui/                # KaTeX helpers, units formatting, plots, predict-first cards
@@ -47,7 +49,9 @@ Sim/
 │       ├── gas.js         # ideal-gas mixtures: NASA-7 or calorically perfect
 │       ├── elements/      # orifice, valve, regulator (check/relief live in network.js)
 │       ├── network.js     # netlist → state vector, RHS, events, readouts
-│       ├── integrate/     # Dormand–Prince 5(4) with dense output
+│       ├── integrate/     # Ros3 (default) and Dormand–Prince 5(4), both with dense output
+│       ├── sensors.js     # transducer lag, noise, quantization (not an ODE state)
+│       ├── daq.js         # stand-daq-v1 CSV (Test_Stand/daq_format.md)
 │       ├── simulate.js    # driver: breakpoints, state events, sampling, stats; steppable runs
 │       ├── analysis.js    # derived readouts: fails-open peak manifold pressure
 │       └── selftest/      # npm test suites, one per topic
@@ -61,6 +65,9 @@ Sim/
 
 - **Physics is pure and headless.** `scripts/check-headless.mjs` fails `npm test` if anything
   under `src/physics/` imports three.js, KaTeX, UI or scene code, or names a browser global.
+- **Never adjust a physical parameter to make the solver faster.** Volumes, C_dA and time
+  constants come from hardware, datasheets or stated placeholders; stiffness is the integrator's
+  job (Ros3, docs/solver.md §2a).
 - **SI inside, always.** Only `src/ui/format.js` converts for display (psia, lbf, g/s, °F).
 - **No number without a source.** Every default carries one (datasheet, CEA run, PROJECT_PLAN
   section, or "placeholder, see issue #N"); see [PROVENANCE.md](PROVENANCE.md).

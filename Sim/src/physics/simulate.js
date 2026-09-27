@@ -1,6 +1,6 @@
 /**
- * Simulation driver (brief §4.5): integrates a compiled network with Dormand–Prince 5(4) between
- * breakpoints, handles discrete events, and samples on a fixed grid from the dense output.
+ * Simulation driver (brief §4.5): integrates a compiled network between breakpoints with Ros3
+ * (Rosenbrock, default: the stand is stiff) or Dormand–Prince 5(4) (opts.method: 'dopri5'), handles discrete events, and samples on a fixed grid from the dense output.
  *
  *   simulate(net, { gas, tEnd, schedule, sampleDt, rtol, atolRel, hmax }) →
  *     { t: [...], samples: [readout, …], final, events: [...], stats }
@@ -30,6 +30,7 @@
  */
 import { compileNetwork } from './network.js';
 import { Dopri5 } from './integrate/dopri5.js';
+import { Ros3 } from './integrate/ros3.js';
 import { NonPhysicalState } from './gas.js';
 
 export function simulate(net, opts) {
@@ -41,13 +42,19 @@ export function simulate(net, opts) {
 }
 
 export function createRun(net, opts) {
-  const { gas, sampleDt = 0.01, rtol = 1e-8, atolRel = 1e-10, maxSteps = 2e6, maxEvents = 1e5, maxSamples = Infinity } = opts;
+  const method = opts.method ?? 'ros3';
+  // Each method at its natural tolerance: third-order Ros3 at 1e-6 (≈ 0.0005 psi at 480 psia,
+  // below any transducer), fifth-order Dormand–Prince at 1e-8. Tests that need tighter ask for it.
+  const TOL = { ros3: [1e-6, 1e-8], dopri5: [1e-8, 1e-10] }[method];
+  if (!TOL) throw new Error(`simulate: unknown method ${method}`);
+  const { gas, sampleDt = 0.01, rtol = TOL[0], atolRel = opts.rtol !== undefined ? opts.rtol / 100 : TOL[1], maxSteps = 2e6, maxEvents = 1e5, maxSamples = Infinity } = opts;
   const horizon = opts.horizon ?? 1;
   const sys = opts.sys || compileNetwork(net, gas);
   const y = sys.initialState();
   const sc = sys.scales();
   const atol = sc.map((s) => s * atolRel);
-  const solver = new Dopri5(sys.nState, sys.rhs, { rtol, atol });
+  // Integrator: 'ros3' (Rosenbrock, the default since M3: the stand is stiff) or 'dopri5'.
+  const solver = method === 'dopri5' ? new Dopri5(sys.nState, sys.rhs, { rtol, atol }) : new Ros3(sys.nState, sys.rhs, { rtol, atol, scale: sc });
   const hmax = Math.min(opts.hmax ?? Infinity, sys.fastestRamp / 4, horizon / 20);
 
   // Breakpoints: scheduled commands first; valve ramps add more as commands fire.
@@ -80,6 +87,11 @@ export function createRun(net, opts) {
   };
 
   const g0 = new Float64Array(sys.nEvents);
+  const k0 = new Float64Array(sys.nKinks);
+  const k1 = new Float64Array(sys.nKinks);
+  const km = new Float64Array(sys.nKinks);
+  const skip = new Uint8Array(sys.nKinks);
+  let nKinkCuts = 0;
   const g1 = new Float64Array(sys.nEvents);
   const gm = new Float64Array(sys.nEvents);
   const yE = new Float64Array(sys.nState);
@@ -114,6 +126,7 @@ export function createRun(net, opts) {
       sys.events(t, y, g0);
       solver.reset();
     }
+    if (sys.nKinks) sys.kinks(t, y, k0);
     sample(0, y);
     tSample = sampleDt;
   }
@@ -134,6 +147,7 @@ export function createRun(net, opts) {
     out.events.push({ t, id, what: typeof cmd === 'object' ? JSON.stringify(cmd) : String(cmd) });
     solver.reset();
     if (sys.nEvents) sys.events(t, y, g0);
+    if (sys.nKinks) sys.kinks(t, y, k0);
   }
 
   /** Integrate from now to tTo (s). */
@@ -164,20 +178,49 @@ export function createRun(net, opts) {
       let tNew = tOld + hTry;
       if (tb - tNew <= 1e-12 * Math.max(1, tb)) tNew = tb; // land exactly on the breakpoint
 
-      // State events inside [tOld, tNew]?
+      // State events and kinks inside [tOld, tNew]? Take the earliest.
       let fired = -1;
+      let kinked = -1;
+      let tFirst = Infinity;
       if (sys.nEvents) {
         sys.events(tNew, y, g1);
-        let tFirst = Infinity;
         for (let k = 0; k < sys.nEvents; k++) {
           if (g0[k] < 0 && g1[k] >= 0) {
-            const tr = locate(solver, sys, k, tOld, tNew, g0[k], g1[k], yE, gm);
+            const tr = locate(solver, (tt, yy, o) => sys.events(tt, yy, o), k, tOld, tNew, g0[k], g1[k], yE, gm);
             if (tr < tFirst) {
               tFirst = tr;
               fired = k;
             }
           }
         }
+      }
+      if (sys.nKinks) {
+        sys.kinks(tNew, y, k1);
+        for (let k = 0; k < sys.nKinks; k++) {
+          if (!skip[k] && k0[k] * k1[k] < 0) {
+            const tr = locate(solver, (tt, yy, o) => sys.kinks(tt, yy, o), k, tOld, tNew, k0[k], k1[k], yE, km);
+            if (tr < tFirst && tr > tOld) {
+              tFirst = tr;
+              kinked = k;
+              fired = -1;
+            }
+          }
+        }
+        skip.fill(0);
+      }
+      if (kinked >= 0) {
+        // Cut the step at the kink and restart there; no state changes.
+        solver.dense(tFirst, yE);
+        while (tSample <= tFirst + 1e-15) sample(tSample, solver.dense(tSample, yS)), (tSample += sampleDt);
+        y.set(yE);
+        tNew = tFirst;
+        nKinkCuts++;
+        solver.reset();
+        skip[kinked] = 1; // it sits at zero here; do not find it again at the start of the next step
+        if (sys.nEvents) sys.events(tNew, y, g1);
+        sys.kinks(tNew, y, k1);
+      }
+      if (sys.nEvents) {
         if (fired >= 0) {
           solver.dense(tFirst, yE);
           while (tSample <= tFirst + 1e-15) sample(tSample, solver.dense(tSample, yS)), (tSample += sampleDt);
@@ -189,7 +232,7 @@ export function createRun(net, opts) {
           sys.events(tNew, y, g1);
         }
       }
-      if (fired < 0) {
+      if (fired < 0 && kinked < 0) {
         while (tSample <= tNew + 1e-15) sample(tSample, solver.dense(tSample, yS)), (tSample += sampleDt);
       }
       if (peaks) {
@@ -198,19 +241,24 @@ export function createRun(net, opts) {
       }
       t = tNew;
       if (sys.nEvents) g0.set(g1);
+      if (sys.nKinks) {
+        if (fired >= 0) sys.kinks(t, y, k1);
+        k0.set(k1);
+      }
       // Landing on tTo only because a chunk ended is not a discontinuity: keep the step size.
-      h = fired >= 0 ? Math.min(hNext, hTry) : tNew === tTo && !bps.has(tNew) ? Math.max(h, hNext) : hNext;
+      h = fired >= 0 || kinked >= 0 ? Math.min(hNext, hTry) : tNew === tTo && !bps.has(tNew) ? Math.max(h, hNext) : hNext;
       if (bps.has(t) || (ci < cmds.length && cmds[ci].t <= t)) {
         applyCommandsAt(t);
         solver.reset();
         if (sys.nEvents) sys.events(t, y, g0);
+        if (sys.nKinks) sys.kinks(t, y, k0);
       }
     }
   }
 
   function stats() {
     const wall = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - wall0;
-    return { steps: steps - rejected, rejected, nfev: solver.nfev, events: nEv, wallMs: wall };
+    return { steps: steps - rejected, rejected, nfev: solver.nfev, events: nEv, kinks: nKinkCuts, wallMs: wall, method };
   }
 
   /** Close out a batch run: the last sample, final readout and stats. */
@@ -241,19 +289,24 @@ export function createRun(net, opts) {
   };
 }
 
-/** Illinois regula falsi for event k on the last step's dense output. Returns the crossing time. */
-function locate(solver, sys, k, ta, tb, ga, gb, yE, g) {
+/**
+ * Illinois regula falsi on the last step's dense output, for component k of evalFn(t, y, out),
+ * which changes sign between ta (value ga) and tb (value gb). Returns the time just past the
+ * crossing: the first time at which the component has the sign it has at tb.
+ */
+function locate(solver, evalFn, k, ta, tb, ga, gb, yE, g) {
   let a = ta;
   let b = tb;
   let fa = ga;
   let fb = gb;
   let side = 0;
   const tol = 1e-12 * Math.max(1e-9, tb - ta);
+  const sgnB = Math.sign(gb) || 1;
   for (let it = 0; it < 100 && b - a > tol; it++) {
     const c = b - (fb * (b - a)) / (fb - fa);
-    sys.events(c, solver.dense(c, yE), g);
+    evalFn(c, solver.dense(c, yE), g);
     const fc = g[k];
-    if (fc >= 0) {
+    if ((Math.sign(fc) || sgnB) === sgnB) {
       b = c;
       fb = fc;
       if (side === -1) fa /= 2;
@@ -265,5 +318,5 @@ function locate(solver, sys, k, ta, tb, ga, gb, yE, g) {
       side = 1;
     }
   }
-  return b; // the first time at which g ≥ 0
+  return b;
 }

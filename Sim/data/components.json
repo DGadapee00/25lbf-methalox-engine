@@ -63,7 +63,7 @@
         "unit": "cm3",
         "placeholder": true,
         "issue": 6,
-        "note": "bottle isolation to regulator inlet; an estimate of about 1 m of 1/4-in tube until the as-built volume is known. Below ~10 cm3 this node makes the network stiff (solver.md §2)"
+        "note": "bottle isolation to regulator inlet: about 1 m of 1/4-in tube, a physically plausible run, until the as-built volume is known. Chosen for plausibility, never for solver speed (solver.md §2a)"
       }
     },
     "PCV-OX-01": {
@@ -200,6 +200,14 @@
         "note": "main valve to injector, as built"
       }
     },
+    "injector": {
+      "Cd": {
+        "value": 0.77,
+        "unit": "1",
+        "source": "brief V-9 hand check (4 × ⌀1.4 mm GOX at 480 psia, 293 K → 38.8 g/s, PROJECT_PLAN §2.2–2.3); one value for every injector circuit; uncalibrated until Phase 5 step 2/3",
+        "uncalibrated": true
+      }
+    },
     "INJ-OX-01": {
       "n": {
         "value": 4,
@@ -210,12 +218,18 @@
         "value": 1.4,
         "unit": "mm",
         "source": "PROJECT_PLAN §2.3"
-      },
-      "Cd": {
-        "value": 0.78,
+      }
+    },
+    "INJ-FU-01": {
+      "n": {
+        "value": 4,
         "unit": "1",
-        "source": "brief §4.3 default; uncalibrated until Phase 5 step 2/3",
-        "uncalibrated": true
+        "source": "PROJECT_PLAN §2.3"
+      },
+      "d": {
+        "value": 1.0,
+        "unit": "mm",
+        "source": "PROJECT_PLAN §2.3"
       }
     },
     "chamber": {
@@ -237,6 +251,65 @@
         "placeholder": true,
         "issue": 6,
         "note": "ideal; replace from cold-flow data"
+      }
+    },
+    "pt": {
+      "tau": {
+        "value": 1,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6,
+        "note": "first-order lag of a small diaphragm transducer; a hardware time, not a solver knob"
+      },
+      "bits": {
+        "value": 16,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "ADC width across the channel's full-scale range"
+      },
+      "noise": {
+        "value": 0.05,
+        "unit": "psi",
+        "placeholder": true,
+        "issue": 6,
+        "note": "1-sigma of the reading; applied only when a DAQ log is given a noise seed"
+      }
+    },
+    "PT-OX-01": {
+      "range": {
+        "value": 3000,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "bottle transducer full scale; covers a 2000–2400 psi fill with headroom"
+      }
+    },
+    "PT-OX-02": {
+      "range": {
+        "value": 1000,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "manifold full scale; covers the 480 psia set point and the 600 psi relief"
+      }
+    },
+    "PT-OX-03": {
+      "range": {
+        "value": 1000,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "line full scale, same class as the manifold transducer"
+      }
+    },
+    "PT-CH-01": {
+      "range": {
+        "value": 500,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "chamber full scale; covers the 250 psia design point with margin"
       }
     }
   }

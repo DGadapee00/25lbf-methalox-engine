@@ -6,7 +6,7 @@ import { fmtP, fmtMdot, sig, unitSystem } from '../ui/format.js';
 import { orificeFlow, criticalRatio, flux } from '../physics/elements/orifice.js';
 import { nasa7Gas, stateFromPTY, massFractions } from '../physics/gas.js';
 import { PSI } from '../physics/constants.js';
-import { components } from '../data/components.js';
+import { components, injectorCdA } from '../data/components.js';
 
 /**
  * Orifice (brief §6.1, lab 2): sweep the downstream pressure through the critical ratio and watch
@@ -22,8 +22,7 @@ const circle = (d) => (Math.PI / 4) * d * d;
 
 function defaults() {
   const c = components();
-  const inj = c['INJ-OX-01'];
-  return { gas: 'O2', p0: c['PCV-OX-01'].pSet, pb: 250 * PSI, T0: c.ambient.T, CdA: inj.Cd * inj.n * circle(inj.d) };
+  return { gas: 'O2', p0: c['PCV-OX-01'].pSet, pb: 250 * PSI, T0: c.ambient.T, CdA: injectorCdA(c, 'INJ-OX-01'), Cd: c.injector.Cd };
 }
 
 function state(gasName, p, T) {
@@ -56,7 +55,7 @@ export default defineLab({
     <label>Upstream p₀ (psia) <input id="or-p0" type="number" min="20" max="2000" step="5" value="${(s.p0 / PSI).toFixed(1)}"></label>
     <label>Back pressure (psia) <input id="or-pb-n" type="number" min="1" max="2000" step="1" value="${(s.pb / PSI).toFixed(1)}"></label>
     <input id="or-pb" type="range" min="0.02" max="1" step="0.001" value="${(s.pb / s.p0).toFixed(3)}" aria-label="Back pressure as a fraction of p0">
-    <p class="note">Default: GOX injector INJ-OX-01, 4 × ⌀1.4 mm, C_d 0.78 (uncalibrated), 480 psia into P_c = 250 psia (PROJECT_PLAN §2).</p>`,
+    <p class="note">Default: GOX injector INJ-OX-01, 4 × ⌀1.4 mm, C_d ${s.Cd} (components.json, uncalibrated), 480 psia into P_c = 250 psia (PROJECT_PLAN §2).</p>`,
   bind({ state: s, bump, root }) {
     const num = root.querySelector('#or-pb-n');
     const sl = root.querySelector('#or-pb');

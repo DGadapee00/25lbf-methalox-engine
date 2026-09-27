@@ -14,8 +14,7 @@ import { rampColorCVD } from './scene/manim.js';
  * App shell. Deliberately thin: FLUX's main.js is bound to exams, problems and notes, so this was
  * written fresh against the same lab contract (labs/define.js) rather than stripped down.
  *
- * Modes (brief §5.1): Operate, Sequence, Test. Operate exists; Sequence arrives in M3 and Test in
- * M6, shown disabled until then.
+ * Modes (brief §5.1): Operate, Sequence, Test. Operate and Sequence are live; Test arrives in M6.
  */
 console.info(`Stand sim build ${__BUILD__.commit}${__BUILD__.subject ? ` — ${__BUILD__.subject}` : ''} (built ${__BUILD__.built})`);
 
@@ -25,7 +24,7 @@ const { renderer, scene, camera, controls, labels } = createScene(canvas);
 const ctx = { scene, camera, controls, renderer };
 const clock = new THREE.Clock();
 
-const app = { id: null, lab: null, handles: {}, slices: {}, computed: {}, dirty: true, gen: 0 };
+const app = { id: null, lab: null, handles: {}, slices: {}, computed: {}, dirty: true, gen: 0, mode: 'operate' };
 // Read by scripts/smoke.mjs: which lab is mounted, what it computed, and its handle.
 window.__sim = { app, build: __BUILD__ };
 
@@ -82,6 +81,7 @@ async function openLab(id, { replace = false } = {}) {
   app.id = id;
   app.lab = lab;
   if (!app.slices[id]) app.slices[id] = lab.defaultState();
+  if (lab.setMode) app.slices[id].mode = app.mode;
   if (!app.handles[id]) app.handles[id] = lab.init(ctx);
   const h = app.handles[id];
   controls.enableRotate = !!lab.orbit;
@@ -92,6 +92,8 @@ async function openLab(id, { replace = false } = {}) {
   const root = $id('setup');
   root.innerHTML = lab.controls(app.slices[id]);
   lab.bind({ state: app.slices[id], bump: () => (app.dirty = true), root, handle: h });
+  // Start the stand, and restart it only when the mode changed. Coming back keeps the run.
+  if (lab.setMode && h.mode !== app.mode) lab.setMode(app.slices[id], h, app.mode);
   writeHash(id, { replace });
   document.title = `${labById(id).title} — Stand Sim`;
   renderTabs();
@@ -102,6 +104,41 @@ $id('lab-tabs').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-lab]');
   if (b) openLab(b.dataset.lab);
 });
+
+function paintModes() {
+  for (const mode of ['operate', 'sequence']) {
+    const b = $id(`mode-${mode}`);
+    const on = app.mode === mode;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+}
+
+function refreshControls() {
+  const { lab } = app;
+  if (!lab) return;
+  const root = $id('setup');
+  const s = app.slices[app.id];
+  root.innerHTML = lab.controls(s);
+  lab.bind({ state: s, bump: () => (app.dirty = true), root, handle: app.handles[app.id] });
+}
+
+async function setMode(mode) {
+  if (mode === app.mode && !(mode === 'sequence' && app.id !== 'gn2-coldflow')) return;
+  app.mode = mode;
+  paintModes();
+  if (mode === 'sequence' && app.id !== 'gn2-coldflow') {
+    await openLab('gn2-coldflow');
+    return;
+  }
+  const { lab } = app;
+  if (lab?.setMode) lab.setMode(app.slices[app.id], app.handles[app.id], mode);
+  refreshControls();
+  app.dirty = true;
+}
+
+$id('mode-operate').addEventListener('click', () => setMode('operate'));
+$id('mode-sequence').addEventListener('click', () => setMode('sequence'));
 
 $id('units-toggle').addEventListener('click', () => {
   setUnitSystem(unitSystem() === 'us' ? 'si' : 'us');
@@ -145,7 +182,8 @@ function frame() {
     } else if (h?.pid) {
       // Keep the flow dots moving between physics updates.
       const c = app.computed[app.id];
-      const r = c?.readout ?? c?.now ?? c?.r?.final;
+      // A readout has nodes. injector.now is the operating point, not a readout.
+      const r = [c?.readout, c?.now, c?.r?.final, c?.final].find((x) => x?.nodes);
       if (r) h.pid.update(r, dt);
     }
   }

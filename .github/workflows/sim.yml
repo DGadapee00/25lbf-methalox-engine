@@ -10,9 +10,9 @@ name: Sim
 on:
   push:
     branches: [main]
-    paths: ['Sim/**', '.github/workflows/sim.yml']
+    paths: ['Sim/**', 'Test_Stand/**', '.github/workflows/sim.yml']
   pull_request:
-    paths: ['Sim/**', '.github/workflows/sim.yml']
+    paths: ['Sim/**', 'Test_Stand/**', '.github/workflows/sim.yml']
   workflow_dispatch:
 
 permissions:
@@ -52,7 +52,8 @@ jobs:
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
 
-      - run: npm run smoke
+      # The dev server is not what Pages publishes. Smoke the build that would go live.
+      - run: node scripts/smoke.mjs --preview
 
       - uses: actions/upload-artifact@v4
         if: always()

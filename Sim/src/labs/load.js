@@ -3,6 +3,8 @@ const loaders = {
   blowdown: () => import('./blowdown.js'),
   orifice: () => import('./orifice.js'),
   regulator: () => import('./regulator.js'),
+  'valve-timing': () => import('./valveTiming.js'),
+  injector: () => import('./injector.js'),
   'gn2-coldflow': () => import('./stand.js'),
 };
 

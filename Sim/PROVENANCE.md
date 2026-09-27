@@ -85,10 +85,13 @@ tracking issue, and the loader refuses anything else.**
   - regulator set point 480 psia at 38.8 g/s rated flow (PROJECT_PLAN §2.2–2.3);
   - relief accumulation 10% (decision 2026-09-26);
   - standard atmosphere.
-- **Uncalibrated:** injector C_d 0.78 (brief §4.3 default) until Phase 5 step 2/3.
-- **Placeholders (issue #6):** 25 values, covering bottle volume and fill, valve C_v and timing,
+- **Uncalibrated:** injector C_d 0.77 (V-9 hand check, one value for every injector circuit) until
+  Phase 5 step 2/3.
+- **Placeholders (issue #6):** 31 values, covering bottle volume and fill, valve C_v and timing,
   regulator C_v / droop / τ, relief set / blowdown / τ_lift / sizing margin, manifold, line and
-  HP-line volumes, throat C_d, ambient temperature. The stand's Setup panel lists them.
+  HP-line volumes, throat C_d, ambient temperature, and the transducer full scale, lag, ADC width
+  and noise. The stand's Setup panel lists them. The HP-line volume (20 cm³) is about 1 m of
+  1/4-inch tube; it is that run of tube, not a number chosen to help the solver.
 
 The relief C_dA is not a free number: it is the build-time rule's minimum times the sizing
 margin, so it follows the regulator and set pressure.
