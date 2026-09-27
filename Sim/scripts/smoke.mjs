@@ -55,16 +55,26 @@ try {
           return c?.mode === 'operate' && c.readout && c.t < 2;
         }, lab.id, { timeout: 30000 });
       }
-      // Drive the live stand: bottle isolation open, then the main valve, at 5× time.
+      // Drive the live stand: bottle isolation open, then the main valve, at 5× time. The hot-fire
+      // stand opens both propellant circuits and switches the igniter on with the main valves.
+      const hot = lab.id === 'hot-fire';
       await page.waitForFunction((id) => window.__sim.app.computed[id]?.readout, lab.id, { timeout: 20000 });
-      await page.evaluate((id) => {
+      await page.evaluate(([id, hotStand]) => {
         const { app } = window.__sim;
         app.slices[id].scale = 5;
         app.handles[id].toggle('HV-OX-01');
-      }, lab.id);
+        if (hotStand) app.handles[id].toggle('HV-FU-01');
+      }, [lab.id, hot]);
       await page.waitForFunction((id) => window.__sim.app.computed[id].t > 2.5, lab.id, { timeout: 30000 });
-      await page.evaluate((id) => window.__sim.app.handles[id].toggle('SV-OX-01'), lab.id);
-      await page.waitForFunction((id) => window.__sim.app.computed[id].t > 6, lab.id, { timeout: 30000 });
+      await page.evaluate(([id, hotStand]) => {
+        const h = window.__sim.app.handles[id];
+        h.toggle('SV-OX-01');
+        if (hotStand) {
+          h.toggle('SV-FU-01');
+          h.toggle('IGN-IG-01');
+        }
+      }, [lab.id, hot]);
+      await page.waitForFunction((id) => window.__sim.app.computed[id].t > 6, lab.id, { timeout: hot ? 90000 : 30000 });
     }
     await page.waitForTimeout(300);
     const got = await page.evaluate((id) => ({ computed: window.__sim.app.computed, status: document.getElementById('lab-status').textContent }), lab.id);
@@ -79,7 +89,34 @@ try {
       } else if (!(relErr(v, spec.value) <= spec.tol)) mismatches.push({ name: `${lab.id}: ${key}`, got: v, exp: spec.value, tol: spec.tol });
     }
     console.log(`  loaded  ${lab.kind}/${lab.id}`);
-    if (lab.kind === 'stand') {
+    if (lab.id === 'hot-fire') {
+      // No hot-fire table exists; Sequence mode must say so rather than play anything.
+      await page.click('#mode-sequence');
+      await page.waitForFunction(() => /No sequence file exists/.test(document.getElementById('setup').textContent), null, { timeout: 20000 });
+      console.log('  sequence mode on hot-fire says there is no sequence file');
+      // M5 plumbing: a loaded table with one abort, and a scheduled regulator failure that trips it.
+      // SMOKE FIXTURE: the threshold and the action are test values, not a proposed abort.
+      await page.evaluate(() => {
+        const h = window.__sim.app.handles['hot-fire'];
+        h.loadTable({
+          id: 'smoke-abort',
+          purpose: 'smoke fixture',
+          tEnd: 2,
+          rateHz: 50,
+          steps: [{ t: 0, cmd: { 'HV-OX-01': 'open' } }],
+          aborts: [{ id: 'A-1', when: 'PT-OX-02 > 650 psia for 3 samples', action: 'vent' }],
+          actions: { vent: [{ dt: 0, cmd: { 'SV-OX-02': 'open' } }] },
+          checks: [{ id: 'C-1', expect: 'no abort' }],
+        }, 'smoke fixture');
+        h.state.faults = [{ t: 0.5, id: 'PCV-OX-01', cmd: { fault: 'open' }, label: 'fails open' }];
+        h.reset();
+      });
+      await page.waitForFunction(() => {
+        const c = window.__sim.app.computed['hot-fire'];
+        return c?.report?.abort?.id === 'A-1' && (c.readout?.edges['SV-OX-02']?.x ?? 0) > 0 && c.report.checks[0].pass === false;
+      }, null, { timeout: 60000 });
+      console.log('  a scheduled PCV-OX-01 failure tripped the loaded table\'s abort, which vented the manifold');
+    } else if (lab.kind === 'stand') {
       // Sequence mode, after the operate baseline: the step-1 table opens HV-OX-01 by itself.
       await page.click('#mode-sequence');
       await page.waitForFunction((id) => {
@@ -100,8 +137,36 @@ try {
         return c && c.t > 0.02 && c.t < 0.12 && x < 1e-9;
       }, lab.id, { timeout: 30000 });
       console.log(`  scrub rewound ${lab.id} to before the first command`);
+      if (lab.id === 'gn2-coldflow') {
+        // Test mode (M6): a synthetic log with INJ-OX-01 at 92% of its area, fitted back in the worker.
+        await page.click('#mode-test');
+        await page.waitForFunction(() => window.__sim.app.handles['gn2-coldflow'].test?.s?.mode === 'test', null, { timeout: 20000 });
+        const err = await page.evaluate(async () => {
+          const api = window.__sim.app.handles['gn2-coldflow'].test;
+          api.s.test.synth['INJ-OX-01'] = 92;
+          api.s.test.params = ['INJ-OX-01'];
+          api.s.test.tags = ['PT-OX-03', 'PT-CH-01'];
+          await api.synthetic();
+          await api.fit();
+          const f = api.state.fit;
+          return f ? f.fitted['INJ-OX-01'] / api.state.truth['INJ-OX-01'] - 1 : api.state.error;
+        });
+        if (!(Math.abs(err) < 5e-3)) errors.push(`test mode: fit did not recover INJ-OX-01 (${err})`);
+        else console.log(`  test mode recovered INJ-OX-01 from a synthetic log to ${(err * 100).toFixed(3)}%`);
+      }
     }
   }
+  // The guide and the inspector (learning layer): a lesson opens its lab and marks the next
+  // control in yellow; hovering the schematic shows an element's live card.
+  await page.evaluate(() => window.__sim.guide.open(6));
+  await page.waitForFunction(() => window.__sim.app.id === 'gn2-coldflow' && window.__sim.app.computed['gn2-coldflow']?.readout, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.getElementById('guide').hidden && document.querySelector('.guide-next') && window.__sim.app.handles['gn2-coldflow'].pid.nextTag === 'HV-OX-01', null, { timeout: 20000 });
+  console.log('  guide lesson 7 opened the GN₂ stand and marked HV-OX-01 in yellow');
+  const at = await page.evaluate(() => window.__sim.toScreen(-1.2, 0));
+  await page.mouse.move(at.x, at.y);
+  await page.waitForFunction(() => !document.getElementById('inspector').hidden && /manifold/.test(document.getElementById('inspector').textContent), null, { timeout: 10000 });
+  console.log('  hovering the manifold opened the inspector');
+  await page.evaluate(() => window.__sim.guide.close());
 } catch (e) {
   errors.push(String(e));
 } finally {

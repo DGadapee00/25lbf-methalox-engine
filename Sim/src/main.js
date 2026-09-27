@@ -9,12 +9,17 @@ import { setUnitSystem, unitSystem } from './ui/format.js';
 import { drawPlot } from './ui/plot.js';
 import { renderPredict } from './ui/predict.js';
 import { rampColorCVD } from './scene/manim.js';
+import { inspectorHTML } from './ui/inspector.js';
+import { createGuide } from './ui/guide.js';
+import { COURSE } from './data/course.js';
+import { createGlossary } from './ui/glossary.js';
 
 /**
  * App shell. Deliberately thin: FLUX's main.js is bound to exams, problems and notes, so this was
  * written fresh against the same lab contract (labs/define.js) rather than stripped down.
  *
- * Modes (brief §5.1): Operate, Sequence, Test. Operate and Sequence are live; Test arrives in M6.
+ * Modes (brief §5.1): Operate, Sequence, Test. Operate and Sequence are live; Test (M6) predicts,
+ * imports a DAQ log, overlays and fits (labs/testPanel.js). Sequence and Test belong to stands.
  */
 console.info(`Stand sim build ${__BUILD__.commit}${__BUILD__.subject ? ` — ${__BUILD__.subject}` : ''} (built ${__BUILD__.built})`);
 
@@ -26,7 +31,13 @@ const clock = new THREE.Clock();
 
 const app = { id: null, lab: null, handles: {}, slices: {}, computed: {}, dirty: true, gen: 0, mode: 'operate' };
 // Read by scripts/smoke.mjs: which lab is mounted, what it computed, and its handle.
-window.__sim = { app, build: __BUILD__ };
+window.__sim = { app, build: __BUILD__, ctx };
+/** Screen position (CSS px) of a scene point: for the smoke test and the guide's highlights. */
+window.__sim.toScreen = (x, y) => {
+  const v = new THREE.Vector3(x, y, 0).project(camera);
+  const r = canvas.getBoundingClientRect();
+  return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+};
 
 function renderTabs() {
   const tabs = LABS.map(
@@ -68,6 +79,9 @@ function renderPanels() {
   st.textContent = STATUS_TEXT[lab.status] || lab.status;
   st.className = `lab-status ${lab.status}`;
   $id('hint').textContent = lab.hint;
+  // The readout bar grows when a cell carries a caveat; the plot and legend sit above it.
+  const rb = document.querySelector('.readout-bar')?.offsetHeight || 84;
+  document.documentElement.style.setProperty('--rb', `${rb}px`);
   const spec = lab.plot(s, c, h);
   $id('plot-panel').hidden = !spec;
   if (spec) drawPlot($id('plot'), spec);
@@ -75,6 +89,7 @@ function renderPanels() {
 
 async function openLab(id, { replace = false } = {}) {
   const gen = ++app.gen;
+  showInspector(null);
   const lab = await loadLab(id);
   if (!lab || gen !== app.gen) return;
   if (app.lab) app.lab.exit(ctx, app.handles[app.id], app.slices[app.id]);
@@ -106,7 +121,7 @@ $id('lab-tabs').addEventListener('click', (e) => {
 });
 
 function paintModes() {
-  for (const mode of ['operate', 'sequence']) {
+  for (const mode of ['operate', 'sequence', 'test']) {
     const b = $id(`mode-${mode}`);
     const on = app.mode === mode;
     b.classList.toggle('active', on);
@@ -128,10 +143,10 @@ function isStand(id) {
 }
 
 async function setMode(mode) {
-  if (mode === app.mode && !(mode === 'sequence' && !isStand(app.id))) return;
+  if (mode === app.mode && !(mode !== 'operate' && !isStand(app.id))) return;
   app.mode = mode;
   paintModes();
-  if (mode === 'sequence' && !isStand(app.id)) {
+  if (mode !== 'operate' && !isStand(app.id)) {
     await openLab('gn2-coldflow');
     return;
   }
@@ -143,6 +158,7 @@ async function setMode(mode) {
 
 $id('mode-operate').addEventListener('click', () => setMode('operate'));
 $id('mode-sequence').addEventListener('click', () => setMode('sequence'));
+$id('mode-test').addEventListener('click', () => setMode('test'));
 
 $id('units-toggle').addEventListener('click', () => {
   setUnitSystem(unitSystem() === 'us' ? 'si' : 'us');
@@ -152,18 +168,70 @@ $id('units-toggle').addEventListener('click', () => {
 
 // Click on the schematic: hand the P&ID element under the pointer to the lab.
 const ndc = new THREE.Vector2();
+const toNdc = (e) => {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+};
 canvas.addEventListener('pointerdown', (e) => {
   const { lab } = app;
   const h = app.handles[app.id];
-  if (!lab?.onPick || !h?.pid) return;
-  const r = canvas.getBoundingClientRect();
-  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  if (!h?.pid) return;
+  toNdc(e);
+  // A tap shows the inspector (there is no hover on a touch screen); a click on a valve also toggles it.
+  if (e.pointerType !== 'mouse') {
+    const r = canvas.getBoundingClientRect();
+    showInspector(h.pid.inspect(ndc, camera, { px: 24, w: r.width, h: r.height }), e.clientX, e.clientY);
+  }
+  if (!lab?.onPick) return;
   const tag = h.pid.pick(ndc, camera);
   if (tag) {
     lab.onPick(tag, h);
     app.dirty = true;
   }
 });
+
+// Inspector (brief §5.2): hover any element for what it is, its live state and its law.
+const insEl = $id('inspector');
+const ins = { target: null, x: 0, y: 0, last: 0 };
+function placeInspector() {
+  const w = insEl.offsetWidth;
+  const hgt = insEl.offsetHeight;
+  const x = Math.min(window.innerWidth - w - 8, ins.x + 16);
+  const y = Math.min(window.innerHeight - hgt - 8, ins.y + 16);
+  insEl.style.left = `${Math.max(8, x)}px`;
+  insEl.style.top = `${Math.max(8, y)}px`;
+}
+function renderInspector() {
+  const h = app.handles[app.id];
+  if (!ins.target || !h?.pid) return;
+  insEl.innerHTML = inspectorHTML(ins.target, h.pid);
+  placeInspector();
+}
+function showInspector(target, x, y) {
+  ins.target = target;
+  ins.x = x;
+  ins.y = y;
+  insEl.hidden = !target;
+  canvas.style.cursor = target ? 'help' : '';
+  if (target) renderInspector();
+}
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const h = app.handles[app.id];
+  if (!h?.pid) return showInspector(null);
+  toNdc(e);
+  const t = h.pid.inspect(ndc, camera);
+  if (t?.kind !== ins.target?.kind || t?.id !== ins.target?.id) showInspector(t, e.clientX, e.clientY);
+  else if (t) {
+    ins.x = e.clientX;
+    ins.y = e.clientY;
+    placeInspector();
+  }
+  if (t && h.pid.pick(ndc, camera)) canvas.style.cursor = 'pointer';
+});
+// A finger lifting also "leaves"; only a mouse leaving the canvas closes the card. On touch, the
+// next tap elsewhere (or Esc) replaces or closes it.
+canvas.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && showInspector(null));
 
 window.addEventListener('hashchange', () => {
   const { id } = parseHash();
@@ -191,10 +259,78 @@ function frame() {
       if (r) h.pid.update(r, dt);
     }
   }
+  guide.tick();
+  // Keep an open inspector live, a few times a second.
+  if (ins.target && performance.now() - ins.last > 150) {
+    ins.last = performance.now();
+    renderInspector();
+  }
   controls.update();
   renderer.render(scene, camera);
   labels.render(scene, camera);
 }
+
+// The guided path and the first-visit welcome.
+const guide = createGuide({ app, openLab, setMode, refresh: refreshControls, isStand, el: $id('guide') });
+// Desktop: the guide heads the right panel. Phone: the panels stack, so it goes under the header.
+const phone = window.matchMedia('(max-width: 720px)');
+const placeGuide = () => {
+  const el = $id('guide');
+  if (phone.matches) document.querySelector('.brand').after(el);
+  else document.querySelector('.eq-panel').prepend(el);
+};
+placeGuide();
+phone.addEventListener?.('change', placeGuide);
+window.__sim.guide = guide;
+window.__sim.lessonIds = COURSE.map((l) => l.id);
+$id('guide-btn').addEventListener('click', () => (guide.active ? guide.close() : guide.open(guide.index)));
+const glossary = createGlossary($id('glossary'));
+$id('glossary-btn').addEventListener('click', () => glossary.toggle());
+const WELCOME = 'standsim.welcome.v1';
+let seen = false;
+try {
+  seen = localStorage.getItem(WELCOME) === '1';
+} catch {
+  // storage blocked: show it
+}
+const welcome = $id('welcome');
+const dismiss = () => {
+  welcome.hidden = true;
+  try {
+    localStorage.setItem(WELCOME, '1');
+  } catch {
+    // not kept
+  }
+};
+// Automated browsers (the smoke test) skip it: it would sit over the controls they click.
+if (!seen && !navigator.webdriver) welcome.hidden = false;
+$id('welcome-start').addEventListener('click', () => {
+  dismiss();
+  guide.open(guide.hasProgress() ? guide.index : 0);
+});
+$id('welcome-explore').addEventListener('click', dismiss);
+welcome.addEventListener('click', (e) => e.target === welcome && dismiss());
+
+// Keys: Space pause/resume and R reset (stands), G the guide, ? the glossary, Esc closes overlays.
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest?.('input, select, textarea')) return;
+  const { lab } = app;
+  if (e.key === 'Escape') {
+    showInspector(null);
+    glossary.toggle(false);
+    if (!welcome.hidden) dismiss();
+    return;
+  }
+  if (e.key === '?') glossary.toggle();
+  else if (e.key === 'g' || e.key === 'G') (guide.active ? guide.close() : guide.open(guide.index));
+  else if ((e.key === ' ' || e.key === 'r' || e.key === 'R') && lab?.onKey) {
+    e.preventDefault();
+    lab.onKey(e.key === ' ' ? 'space' : 'reset', app.slices[app.id], app.handles[app.id]);
+    refreshControls();
+  } else return;
+  app.dirty = true;
+});
 
 openLab(parseHash().id, { replace: true });
 frame();

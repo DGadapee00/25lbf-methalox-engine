@@ -27,6 +27,9 @@ All exact by definition; the definition is cited on each line of the source file
 | File | Contents | Source | Generator |
 |---|---|---|---|
 | `thermo_nasa7.json` | NASA-7 c_p(T), h(T) for O₂, CH₄, N₂, H₂O, CO₂, CO, H₂ | GRI-Mech 3.0 `thermo30.dat` (Smith et al.) | `tools/nasa7.py` |
+| `cea_gox_gch4.json` | c*, T_c, M, γ, C_F,vac, P_c/p_e at ε = 3 over O/F 1.2–40 × P_c 10–1000 psia; off-grid check points; design point with frozen c_p | NASA CEA (Gordon & McBride, RP-1311) via RocketCEA 1.2.3, shifting equilibrium, GOX and GCH₄ cards at 298.15 K | `Phase1_Calculations/cea/cea_table.py` (full design-point output in `design_point.txt`) |
+| `props.json` | μ_JT(p, T) for O₂, CH₄, N₂, T 200–360 K, p 0.1–20 MPa; isenthalpic (h, p) flashes as checks | CoolProp 8.0.0 reference equations of state | `tools/props.py` |
+| `flammability.json` | CH₄ in O₂ 5.1–61 vol%; LOC 12 vol% O₂ with N₂ diluent | Zabetakis, USBM Bulletin 627 (1965). **Hand-entered: verify against the printed bulletin** | hand-entered |
 
 **How `thermo_nasa7.json` was produced.** The canonical host (`combustion.berkeley.edu`) is
 blocked from the build sandbox, so the committed file was generated from Cantera's verbatim copy
@@ -41,7 +44,12 @@ JSON records that URL and its SHA-256. To confirm against the canonical file, ru
   and high fits meet at 1000 K with a small jump (N₂: 0.19 J/kg in h); `temperatureFromU`
   handles it and the self-test checks it.
 
-Planned: CEA equilibrium (M4), CoolProp Z and μ_JT (M4 / v1.1).
+The CEA table is a superset of the brief's O/F 1.5–4.5 × 20–400 psia, because the chamber looks
+it up at whatever mixture ignites. It is a table for the sim, **not** the Phase 1 gate's CEA run
+set, which still needs its sweep, notebook and review. It does say PROJECT_PLAN §2's hand-sized
+c* and I_sp are 5–7% low (docs/solver.md §6d).
+
+Planned: CoolProp Z(p, T) for bottle inventory (v1.1).
 
 ## Reference values used by the self-test
 
@@ -87,9 +95,14 @@ Sourced fields stay on the part they belong to. The fuel regulator's rated flow 
     13.9 g/s (PROJECT_PLAN §2.2–2.3);
   - relief accumulation 10% (decision 2026-09-26), restated on each relief;
   - standard atmosphere.
+  - nozzle ε = 3 (PROJECT_PLAN §2.1) and 15° conical half-angle (PROJECT_PLAN §3 Phase 1), whose
+    divergence factor λ = (1 + cos α)/2 is Sutton & Biblarz eq. 3-34.
 - **Uncalibrated:** injector C_d 0.77 (V-9 hand check, one value for both injector circuits) until
-  Phase 5 step 2/3.
-- **Placeholders (issue #6):** 85 values. The oxidizer circuit, throat C_d, ambient temperature,
+  Phase 5 step 2/3; η_c* 0.92 (PROJECT_PLAN §2.1's assumption) until a hot fire measures c*.
+- **Placeholders added in M4 (issue #6):** the thrust load cell's full scale (100 lbf), lag
+  (5 ms), ADC width and noise. No load cell has been selected. The hot-fire stand's bottles,
+  valves and regulators are the full stand's parts and placeholders, filled with GOX and GCH₄.
+- **Placeholders (issue #6):** 89 values (85 through M3, 4 for the load cell in M4); with the 2 uncalibrated values the Setup panel lists 91. The oxidizer circuit, throat C_d, ambient temperature,
   and the shared transducer lag, ADC width and noise cover bottle volume and fill, valve C_v and
   timing, regulator C_v / droop / τ, relief set / blowdown / τ_lift / sizing margin, manifold,
   line and HP-line volumes, and transducer full scales. Fuel volumes, valves and transducers copy

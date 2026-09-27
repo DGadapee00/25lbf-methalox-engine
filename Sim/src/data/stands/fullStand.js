@@ -23,15 +23,17 @@ const circle = (d) => (Math.PI / 4) * d * d;
 
 export const SPECIES = ['O2', 'CH4', 'N2'];
 
-function leg(c, gas, amb, spec) {
+/** One bottle-to-line circuit. spec.fill is the bottle gas ({ N2: 1 } unless given). */
+export function leg(c, gas, amb, spec) {
   const T = amb.T;
   const bottleP = c[spec.bottlePart].p0;
-  const supply = stateFromPTY(gas, bottleP, T, massFractions(gas, { N2: 1 }));
+  const fill = spec.fill || { N2: 1 };
+  const supply = stateFromPTY(gas, bottleP, T, massFractions(gas, fill));
   const reg = c[spec.pcv];
   const regCdA = cvToCdA(reg.Cv);
   const relief = c[spec.psv];
   const reliefCdA = relief.sizingMargin * reliefCdAForFailOpen(regCdA, supply, relief.set, amb.p, relief.accumulation);
-  const vol = (id, part, p, label) => ({ id, kind: 'volume', V: c[part].V, p, T, Y: { N2: 1 }, label, circuit: spec.circuit });
+  const vol = (id, part, p, label, Y = { N2: 1 }) => ({ id, kind: 'volume', V: c[part].V, p, T, Y, label, circuit: spec.circuit });
   const valve = (id, a, b) => ({
     id,
     type: 'valve',
@@ -45,7 +47,7 @@ function leg(c, gas, amb, spec) {
   });
   return {
     nodes: [
-      vol(spec.bottle, spec.bottlePart, bottleP, spec.bottleLabel),
+      vol(spec.bottle, spec.bottlePart, bottleP, spec.bottleLabel, fill),
       vol(spec.hp, spec.hpPart, amb.p, spec.hpLabel),
       vol(spec.man, spec.manPart, amb.p, spec.manLabel),
       vol(spec.line, spec.linePart, amb.p, spec.lineLabel),

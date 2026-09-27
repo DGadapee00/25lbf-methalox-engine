@@ -7,6 +7,9 @@ const loaders = {
   injector: () => import('./injector.js'),
   'gn2-coldflow': () => import('./stand.js'),
   'full-stand': () => import('./fullStand.js'),
+  'chamber-fill': () => import('./chamberFill.js'),
+  'hot-fire': () => import('./hotFire.js'),
+  margin: () => import('./margin.js'),
 };
 
 const cache = new Map();

@@ -101,11 +101,11 @@ export default defineLab({
     return {
       series: [
         { xs: ts, ys: c.samples.map((x) => (x.t < s.delay ? 0 : 1)), color: '#9a9591', label: 'command' },
-        { xs: ts, ys: c.samples.map((x) => x.edges['SV-OX-01'].x), color: '#f4d345', label: 'stem x' },
+        { xs: ts, ys: c.samples.map((x) => x.edges['SV-OX-01'].x), color: '#c7b3dc', label: 'stem x' },
       ],
       vlines: [
         { x: s.delay * 1e3, color: '#9a9591', label: 'delay' },
-        { x: c.halfT * 1e3, color: '#f4d345', label: 'half' },
+        { x: c.halfT * 1e3, color: '#c7b3dc', label: 'half' },
       ],
       xLabel: 't (ms)',
       yLabel: 'x',

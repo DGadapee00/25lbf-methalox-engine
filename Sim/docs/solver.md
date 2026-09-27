@@ -381,11 +381,133 @@ The purge regulator set point, rated flow, relief set and check-valve crack are 
 on issue #6. The relief set sits above the stand-in lockup, so the relief stays shut while
 the purge regulator holds. A purge specification has not been written.
 
-## 7. Known limits (M1–M3)
+## 6d. The chamber, ignition and hot fire (M4)
 
-- Ideal gas. No Z(p,T) (v1.1), no Joule–Thomson cooling across the regulator (M4).
+`physics/chamber.js` and a `chamber` node kind in `network.js`. The chamber is a control volume
+with a discrete combustion flag.
+
+- **Cold**, it is an ordinary ideal-gas volume.
+- **Ignition** is a state event: armed while the igniter is on (and not faulted no-light), it
+  fires when the chamber gas crosses into the CH₄/O₂ flammability limits (5.1–61% CH₄ in O₂,
+  LOC 12% O₂; `data/flammability.json`). Everything unburned burns at once: O₂ and CH₄ are
+  relabelled PRODox and PRODfu, mass for mass, and the pressure jumps to the table's state.
+- **Burning**, P_c comes from the CEA table (`data/cea_gox_gch4.json`, Phase1_Calculations/cea)
+  at the contents' O/F with c* = η_c* c*_CEA and (RT)_eff = (c*Γ)², so the throat orifice passes
+  exactly P_c A_t/c*. P_c is solved by fixed point because the table depends on it. The energy
+  slot is frozen; incoming O₂/CH₄ is converted as it arrives.
+- **Extinction** is a second state event: the propellant *inflow* stops being flammable (fuel
+  shut first, a purge arriving). The node returns to the ideal-gas model at the same pressure.
+- The driver calls `reconcile()` after every command and event, for modes that switch without a
+  crossing: an igniter switched on into a gas that is already flammable, or a flash (lit, but the
+  inflow cannot sustain it).
+
+Mass is conserved to round-off through all of it (V-4 over a hot-fire run: 1.7e-15), and
+oxidizer-origin and fuel-origin mass separately. Energy is not a conserved sum once anything
+burns or throttles through a JT regulator, by design; V-5 runs without either.
+
+V-7: after a 0.5% inflow step the fitted 63% time is 1.450 ms, the same as the linearization
+τ_c(1 − dln RT/dln p)/(1 − dln c*/dln p) from the table, and 1.4% from the brief's
+τ_c = L*/(c*Γ²). The step waits 0.1 s: the lines start full of N₂ and take 5–8 ms time constants
+to flush, and an early step measures the flush, not the chamber.
+
+V-8 (hot-fire stand, fixture timings, JT off): ṁ 52.2 g/s, O/F 2.86, P_c 261 psia, F 124.3 N,
+I_sp 243 s. Against PROJECT_PLAN §2 recomputed through the CEA table (its ṁ, O/F, throat and
+η_c*) every quantity is within 1.2%. Against PROJECT_PLAN's hand-sized numbers, P_c is +4.4%,
+F +11.8% and I_sp +13%, and the CEA table accounts for that: η_c*·c*_CEA is 1736 m/s where §2
+implies 1644 m/s, and CEA's ideal I_sp at ε = 3 is 267 s, not ~250 s. **Finding for Dalton, not
+fixed:** at that P_c neither injector is choked (GOX p₀/p 1.83, GCH₄ 1.81). That is S-3.
+
+JT (regulator `jt: true`): dT/dp = μ_JT(p, T) integrated in p with RK4 over a CoolProp table;
+it reproduces CoolProp's own isenthalpic flashes to 0.19 K. From 2000 to 480 psia at 293 K GOX
+leaves at 268 K and GCH₄ at 249 K. Off by default, because PROJECT_PLAN §2 assumes ambient-
+temperature propellant and the sim has no line heat transfer to warm the gas back up.
+
+## 6e. Faults, aborts and checks (M5)
+
+`physics/sequencer.js` is the brief's table driver (§4.7, driver 1). The plant takes commands by
+tag and gives transducer readings at the table's rate; the driver sees nothing else. Steps are
+scheduled up front. When a table has aborts or checks, the driver advances the plant one DAQ
+sample at a time, pushes the sample through the same observer as the DAQ file (lag, quantize),
+and evaluates the abort rules on those readings. The first trip cancels the pending steps
+(`run.cancel`) and schedules the table's named action. A table without aborts or checks plays
+exactly as before, with no extra chunking, so the M3 step counts and smoke values do not move.
+
+Faults are commands on the network: a valve frozen where it is (`stuck`), a regulator open,
+closed or creeping, an orifice partly blocked, the igniter no-light. They are the world, not the
+sequencer, so an abort never cancels them.
+
+The self-test runs a fixture table (clearly labelled: its timings and thresholds are test values,
+not a proposed sequence) on the hot-fire stand: nominal, then once per abort with the fault it
+names. Each abort stays quiet nominally, trips under its fault, runs its action, and cancels the
+rest of the table; the check `INJ-OX-01 choked` fails nominally, which is S-3 again. It then
+applies the same demonstration to every committed table. Only `gn2-step1` is committed, with no
+aborts, so the done-when is met vacuously for committed tables and demonstrated on the fixture.
+
+One observation from building the fixture: on the hot-fire and full stands the ox manifold
+overshoots to about 630 psia while it pressurizes dead-headed, above the 615 psia relief crack, and
+the first-order poppet then traps about 555 psia (§5). With placeholder regulator and relief
+values this is a model statement, not a hardware one, but an overpressure abort threshold below
+that overshoot would trip on every start.
+
+## 6f. Test mode, fitting and sweeps (M6)
+
+**Fitting** (`physics/fit.js`). The residual is the transducer reading, simulated through the
+same observer as the DAQ file (lag, no quantization, which would make the objective a
+staircase), minus the logged one, divided by the channel's full scale. The whole table is re-run
+for every evaluation. Parameters are ln(C_dA), Levenberg–Marquardt with a forward-difference
+Jacobian (step 1e-3). An area whose column is below 1e-3 RMS is refused: on the GN₂ stand the
+integrator's own tolerance noise in that difference is about 2e-4, and a real sensitivity (the
+injector, the throat) is about 4e-2.
+
+The done-when: a synthetic log (the sim with INJ-OX-01 at 92% and THROAT-01 at 97% of their
+areas, through the stand-daq-v1 writer with seeded noise and 16-bit quantization, parsed back)
+is fitted from the stand's values in 6 iterations; both areas come back within 0.009%, inside
+their 0.02% standard errors, and the residuals fall to the placeholder noise (0.05 psi).
+
+**Predictions** are `stand-prediction-v1` records: the table, the stand, the sim commit, the
+component file's stamp and the time, with the quantized readings every channel should show.
+`npm run validate` compares one with a log and writes the VALIDATION.md section, and refuses any
+log whose header says `source: sim`.
+
+**Sweeps** (`physics/sweep.js`) run the chamber-fill network to a steady burn. The S-3 study
+(`sweeps/s3-choke-margin.json`) shows the result that matters for that decision: with the holes as
+drawn the choke margin p₀/P_c does not change with manifold pressure (P_c rises with it), and it
+is 1.82 at η_c* 0.92, below O₂'s critical 1.893; it moves with η_c* (1.90 at 0.88, 1.73 at 0.97).
+Raising the margin at the design flow takes smaller holes and a higher manifold pressure together
+(the dashed line). That is information for the ADR, not a choice. Monte Carlo takes the spreads
+from its config; none is built in.
+
+## 6g. SIL (M7, partly: D-7 is open)
+
+`physics/sil.js` runs the plant against any sequencer that answers one tick at a time: in, the time
+and the DAQ readings; out, commands by tag and abort events. Commands act on the tick, so a table
+step between ticks happens at the next one; the table driver schedules steps at their exact times.
+Conformance is therefore judged on outcomes: the same aborts within two sample periods, and the
+same verdict on every check, evaluated by the table driver's own code (`evaluateChecks`).
+
+The reference sequencer, `createTableLogic`, is the table logic behind that interface. It
+conforms in-process (self-test) and as a child process over the `stand-sil-v1` JSON-lines
+protocol (`npm run sil-check`, in CI). It is not firmware: the brief puts the firmware logic after
+D-7, and it will be held to the same check.
+
+The optional lumped wall node is not built. Its wall mass, material and heat-transfer coefficient
+come from D-2 and D-3 and the Phase 1 Bartz analysis, none of which exists yet; a node made only
+of placeholders would print a wall temperature with nothing behind it.
+
+## 7. Known limits (M1–M7)
+
+- Ideal gas. No Z(p,T) (v1.1). JT across regulators only, and only when switched on.
 - NASA-7 N₂ is fitted from 300 K; below that it extrapolates. O₂ and CH₄ are fitted from 200 K.
 - No line friction element yet. Short runs are lumped C_dA, per the brief.
 - The valve φ(x) curve is linear unless a cited table is supplied (D-5).
 - V-10's published worked example is pending (see the self-test's PEND line).
-- The full stand flows nitrogen on every bottle. Combustion, ignition and thrust are M4.
+- Ignition burns the accumulated mixture instantly at the table's (constant-pressure) equilibrium
+  state: the size of the spike, not its shape. Flammability limits are for room temperature and
+  1 atm. Inert gas in a burning chamber is taken at the flame temperature without charging the
+  flame for heating it.
+- Burned gas outside a burning chamber (after shutdown, backflow into a line) is a calorically
+  perfect gas with the design-point molar mass and frozen c_p.
+- The igniter is a switch (D-4 open): no torch flow, no spark energy. IGN-IG-01 is a provisional
+  tag.
+- Nozzle flow separation is not modelled; C_F is floored at 0.
+- The CEA table is clamped at its edges (O/F 1.2–40, P_c 10–1000 psia).

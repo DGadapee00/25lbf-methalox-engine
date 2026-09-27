@@ -1,0 +1,14 @@
+{
+  "source": "M. G. Zabetakis, Flammability Characteristics of Combustible Gases and Vapors, U.S. Bureau of Mines Bulletin 627 (1965): limits of flammability of methane in oxygen (appendix table of limits in air and in oxygen, at room temperature and atmospheric pressure) and the minimum oxygen for combustion of methane with nitrogen as the diluent",
+  "generator": "hand-entered",
+  "generated": "2026-09-27",
+  "commit": "2d6984f",
+  "verify": "Entered from the published table by hand, not downloaded: check against the printed bulletin before relying on them (as for the JANAF values in PROVENANCE.md).",
+  "units": "volume (mole) fraction",
+  "CH4_in_O2": {
+    "lower": 0.051,
+    "upper": 0.61
+  },
+  "LOC_O2_N2_diluent": 0.12,
+  "rule": "Ignition needs the igniter on and the chamber gas flammable: CH4 mole fraction between the lower and upper limit in O2, and O2 mole fraction at or above the limiting oxygen concentration. Burning continues while the propellant inflow meets the same test. The limits are for room temperature and 1 atm; their pressure and temperature dependence is not modelled."
+}

@@ -1,5 +1,5 @@
 {
-  "_note": "Regression baseline for scripts/smoke.mjs: lab \u2192 { path in app.computed \u2192 { value (SI), tol (relative) } or { equals } }. Update only on a deliberate change, in its own commit, saying why. Physics correctness is the self-test's job; this only catches drift in what the page shows.",
+  "_note": "Regression baseline for scripts/smoke.mjs: lab → { path in app.computed → { value (SI), tol (relative) } or { equals } }. Update only on a deliberate change, in its own commit, saying why. Physics correctness is the self-test's job; this only catches drift in what the page shows.",
   "blowdown": {
     "blowdown.tau": {
       "value": 314.50661277271547,
@@ -83,6 +83,56 @@
     "full-stand.failsOpen.0.peak": {
       "value": 5125307.5769144865,
       "tol": 0.0001
+    }
+  },
+  "chamber-fill": {
+    "chamberFill.fin.p": {
+      "value": 1799400.6885598628,
+      "tol": 1e-06
+    },
+    "chamberFill.tauC": {
+      "value": 0.0012765552389619294,
+      "tol": 1e-06
+    },
+    "chamberFill.ign.unburnedEnergy": {
+      "value": 108.98194842377231,
+      "tol": 1e-06
+    },
+    "chamberFill.fin.burning": {
+      "equals": true
+    }
+  },
+  "hot-fire": {
+    "hot-fire.chamber.burning": {
+      "equals": true
+    },
+    "hot-fire.chamber.p": {
+      "value": 1800697.6851983662,
+      "tol": 0.01
+    },
+    "hot-fire.chamber.F": {
+      "value": 124.39449542757092,
+      "tol": 0.01
+    },
+    "hot-fire.choke.INJ-OX-01": {
+      "equals": "red"
+    },
+    "hot-fire.failsOpen.0.peak": {
+      "value": 5114953.920729605,
+      "tol": 0.0001
+    }
+  },
+  "margin": {
+    "marginLab.now.Pc": {
+      "value": 1802164.6077055614,
+      "tol": 1e-06
+    },
+    "marginLab.now.marginOx": {
+      "value": 1.819488121489874,
+      "tol": 1e-06
+    },
+    "marginLab.choke.INJ-OX-01": {
+      "equals": "red"
     }
   }
 }

@@ -1,0 +1,8 @@
+{
+  "kind": "choke-margin",
+  "note": "S-3 study (brief §8): GOX/GCH4 injector choke margin against manifold pressure. eta values bracket PROJECT_PLAN §2.1's assumed 0.92 with brief §8's 0.97; 400-700 psia brackets the §2.3 480 psia manifold. Exploration ranges, not design values.",
+  "pUp_psia": [400, 440, 480, 520, 560, 600, 640, 700],
+  "eta": [0.92, 0.88, 0.97],
+  "scaledAt_psia": 480,
+  "out": "output/s3-choke-margin"
+}

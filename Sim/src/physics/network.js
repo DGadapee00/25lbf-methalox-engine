@@ -6,11 +6,17 @@
  * A network is pure data, like FLUX's data/circuits.js, so the scene and the self-test read the
  * same netlist:
  *
- *   nodes: [{ id, kind: 'volume' | 'ambient', V (m³), p (Pa), T (K), Y: { species: fraction },
+ *   nodes: [{ id, kind: 'volume' | 'ambient' | 'chamber', V (m³), p (Pa), T (K), Y: { species: fraction },
  *             thermal: 'adiabatic' (default) | 'isothermal' | { hA (W/K), Tw (K) }, tag? }]
  *     volume   state (m_i per species, U): p and T are derived. p, T, Y are the initial fill.
  *     ambient  a fixed reservoir (atmosphere, or an idealized infinite supply). It accumulates
  *              what flows into it, so conservation can be checked across the whole network.
+ *     chamber  a volume with a combustion flag (physics/chamber.js). Extra parameters:
+ *              eta (η_c*), nozzle: { throat (edge id), eps, lambda }. The gas must carry O2, CH4
+ *              and the burned-gas species PRODox, PRODfu (gas.js).
+ *
+ *   igniters: optional [{ id, chamber, on0 }]. Commands 'on' | 'off' | { fault: 'no-light' | null }.
+ *     An igniter is not a flow element; it arms the chamber's ignition event.
  *
  *   edges: [{ id, type, a, b, tag?, ...params }], positive flow a → b. Types and parameters:
  *     orifice    CdA (m²)
@@ -20,7 +26,10 @@
  *                of set), tauLift (s), L0; proportional lift, see elements/relief.js
  *     regulator  pSet (Pa, flowing outlet pressure at rated flow), mdotRated (kg/s), droop or
  *                pLockup (Pa), CdAmax (m²), tau (s), spe, pSupplyRef (Pa), z0, fault
- *                a = supply side, b = outlet (the pressure it regulates); see elements/regulator.js
+ *                a = supply side, b = outlet (the pressure it regulates); see elements/regulator.js.
+ *                jt (default false): deliver the gas at its Joule–Thomson outlet temperature
+ *                (physics/jt.js) instead of isenthalpic ideal gas. The energy that takes leaves
+ *                the ideal-gas sum; it is the real-gas correction, so V-5 runs with it off.
  *
  *   checks: optional. Every regulated node must carry relief capacity for its regulator failing
  *     open (checkReliefs below); a network may opt out only with
@@ -41,6 +50,10 @@ import { orificeFlow, regFlux } from './elements/orifice.js';
 import { valveInit, valvePosition, valveCommand, valvePhi } from './elements/valve.js';
 import { regulatorDerive, regulatorCmd, regulatorCdA } from './elements/regulator.js';
 import { reliefCurves, reliefTarget, reliefValidate, ACCUMULATION_DEFAULT } from './elements/relief.js';
+import { mixH, mixR, mixU } from './gas.js';
+import { burningState, flammabilityMargin, molesOf, unburned, thrust } from './chamber.js';
+import { jtOutletT, jtWeights } from './jt.js';
+import { G0 } from './constants.js';
 
 const TYPES = new Set(['orifice', 'valve', 'check', 'relief', 'regulator']);
 
@@ -50,9 +63,14 @@ export function compileNetwork(net, gas) {
   const nodeIdx = new Map(nodes.map((n, i) => [n.id, i]));
   if (nodeIdx.size !== nodes.length) throw new Error('compileNetwork: duplicate node id');
   let off = 0;
+  const ix = { O2: gas.names.indexOf('O2'), CH4: gas.names.indexOf('CH4'), PRODox: gas.names.indexOf('PRODox'), PRODfu: gas.names.indexOf('PRODfu') };
   for (const n of nodes) {
-    if (n.kind !== 'volume' && n.kind !== 'ambient') throw new Error(`node ${n.id}: kind must be volume or ambient`);
-    if (n.kind === 'volume' && !(n.V > 0)) throw new Error(`node ${n.id}: V must be > 0 m³`);
+    if (n.kind !== 'volume' && n.kind !== 'ambient' && n.kind !== 'chamber') throw new Error(`node ${n.id}: kind must be volume, ambient or chamber`);
+    if (n.kind !== 'ambient' && !(n.V > 0)) throw new Error(`node ${n.id}: V must be > 0 m³`);
+    if (n.kind === 'chamber') {
+      if (Object.values(ix).some((i) => i < 0)) throw new Error(`chamber ${n.id}: the gas needs O2, CH4, PRODox and PRODfu`);
+      if (!(n.eta > 0 && n.eta <= 1.2)) throw new Error(`chamber ${n.id}: eta (η_c*) must be in (0, 1.2]`);
+    }
     n.off = off;
     off += ns + 1;
     n.Tlast = n.T;
@@ -90,9 +108,27 @@ export function compileNetwork(net, gas) {
   const disc = edges.map((e) => {
     if (e.type === 'valve') return valveInit(e);
     if (e.type === 'check') return { open: !!e.open0 };
-    if (e.type === 'regulator') return { fault: e.fault ?? null, pLockup: e.derived.pLockup };
+    if (e.type === 'regulator') return { fault: e.fault ?? null, pLockup: e.derived.pLockup, jt: !!e.jt };
     return {};
   });
+
+  // Chambers, and the igniters that arm them. Burning is discrete state: it changes only at events.
+  const chambers = nodes.map((n, k) => [n, k]).filter(([n]) => n.kind === 'chamber').map(([n, k]) => {
+    const throat = n.nozzle?.throat ? edgeIdx.get(n.nozzle.throat) : undefined;
+    if (n.nozzle?.throat && throat === undefined) throw new Error(`chamber ${n.id}: unknown throat edge ${n.nozzle.throat}`);
+    return { n, k, throat, burning: false, pLast: n.p, ignitions: [], inflow: -1 };
+  });
+  const igniters = (net.igniters || []).map((g) => {
+    const c = chambers.find((ch) => ch.n.id === g.chamber);
+    if (!c) throw new Error(`igniter ${g.id}: ${g.chamber} is not a chamber node`);
+    if (edgeIdx.has(g.id)) throw new Error(`igniter ${g.id}: an edge already has that id`);
+    return { id: g.id, c, on: !!g.on0, fault: null };
+  });
+  const igniterOf = (c) => igniters.find((g) => g.c === c);
+  const armed = (c) => {
+    const g = igniterOf(c);
+    return !c.burning && !!g && g.on && g.fault !== 'no-light';
+  };
 
   /** A node's state as filled, before any flow: { p, T, gamma, R, … }. */
   function initialNodeState(n) {
@@ -103,7 +139,7 @@ export function compileNetwork(net, gas) {
   function initialState() {
     const y = new Float64Array(nState);
     for (const n of nodes) {
-      if (n.kind === 'volume') {
+      if (n.kind !== 'ambient') {
         const { m, U } = massesFromPTY(gas, n.p, n.T, n.Yv, n.V);
         y.set(m, n.off);
         y[n.off + ns] = U;
@@ -117,10 +153,16 @@ export function compileNetwork(net, gas) {
 
   /** Thermodynamic state of every node for state vector y. */
   const states = new Array(nodes.length);
+  const chamberAt = new Map(chambers.map((c) => [c.k, c]));
   function nodeStates(y) {
     for (let k = 0; k < nodes.length; k++) {
       const n = nodes[k];
-      if (n.kind === 'ambient') {
+      const ch = chamberAt.get(k);
+      if (ch && ch.burning) {
+        const s = burningState(gas, ix, y.subarray(n.off, n.off + ns), n.V, n.eta, ch.pLast);
+        ch.pLast = s.p;
+        states[k] = s;
+      } else if (n.kind === 'ambient') {
         states[k] = n.fixed || (n.fixed = stateFromPTY(gas, n.p, n.T, n.Yv));
       } else if (n.thermal === 'isothermal') {
         let m = 0;
@@ -143,7 +185,7 @@ export function compileNetwork(net, gas) {
   function edgeCdA(e, d, t, y, sa, sb) {
     switch (e.type) {
       case 'orifice':
-        return e.CdA;
+        return d.blockage ? e.CdA * (1 - d.blockage) : e.CdA;
       case 'valve':
         return e.CdAmax * valvePhi(e, valvePosition(d, t));
       case 'check':
@@ -178,6 +220,16 @@ export function compileNetwork(net, gas) {
     return flows;
   }
 
+  /**
+   * Specific enthalpy (J/kg) a JT-enabled regulator j delivers: the upstream gas at its isenthalpic
+   * real-gas outlet temperature, evaluated with the ideal-gas h(T). Also records T_out on the flow.
+   */
+  function jtEnthalpy(j, up, pOut) {
+    const Tout = jtOutletT(jtWeights(gas, up.Y), up.p, up.T, pOut);
+    flows[j].Tout = Tout;
+    return mixH(gas, up.Y, Tout);
+  }
+
   /** dy/dt at (t, y), into dy. */
   function rhs(t, y, dy) {
     dy.fill(0);
@@ -197,7 +249,18 @@ export function compileNetwork(net, gas) {
       }
       const H = m * up.h;
       dy[oa + ns] -= H;
-      dy[ob + ns] += H;
+      dy[ob + ns] += e.type === 'regulator' && disc[j].jt && m > 0 ? m * jtEnthalpy(j, up, st[e.ib].p) : H;
+    }
+    // A burning chamber converts the propellant it receives as it arrives, and its state comes from
+    // the CEA table, not from U (which is set again at extinction).
+    for (const c of chambers) {
+      if (!c.burning) continue;
+      const o = c.n.off;
+      dy[o + ix.PRODox] += dy[o + ix.O2];
+      dy[o + ix.PRODfu] += dy[o + ix.CH4];
+      dy[o + ix.O2] = 0;
+      dy[o + ix.CH4] = 0;
+      dy[o + ns] = 0;
     }
     for (let k = 0; k < nodes.length; k++) {
       const n = nodes[k];
@@ -230,6 +293,41 @@ export function compileNetwork(net, gas) {
    * driver switches mode when g crosses to ≥ 0 and locates the crossing on the dense output.
    */
   const eventEdges = edges.map((e, j) => j).filter((j) => edges[j].type === 'check');
+  const nCheckEvents = eventEdges.length;
+
+  /** Flammability margin of chamber c's gas (≥ 0 flammable), from masses in y. */
+  function contentsMargin(c, y) {
+    const { n, total } = molesOf(gas, y.subarray(c.n.off, c.n.off + ns));
+    return flammabilityMargin(n[ix.O2], n[ix.CH4], total);
+  }
+  /** Flammability margin of the propellant flowing into chamber c now (flows must be current). */
+  function inflowMargin(c) {
+    let nO2 = 0;
+    let nCH4 = 0;
+    let nAll = 0;
+    for (let j = 0; j < edges.length; j++) {
+      const e = edges[j];
+      const m = flows[j].mdot;
+      const into = (e.ib === c.k && m > 0) || (e.ia === c.k && m < 0);
+      if (!into) continue;
+      const up = states[e.ib === c.k ? e.ia : e.ib];
+      const a = Math.abs(m);
+      for (let i = 0; i < ns; i++) {
+        const moles = (a * up.Y[i]) / gas.W[i];
+        nAll += moles;
+        if (i === ix.O2) nO2 += moles;
+        if (i === ix.CH4) nCH4 += moles;
+      }
+    }
+    return flammabilityMargin(nO2, nCH4, nAll);
+  }
+
+  /**
+   * State-event functions. g < 0 while the current mode holds; the driver switches mode when g
+   * crosses to ≥ 0 and locates the crossing on the dense output. One per check valve (crack or
+   * reseat), then two per chamber: ignition (armed chamber, flammable gas) and extinction (burning
+   * chamber, inflow no longer flammable).
+   */
   function events(t, y, out) {
     const st = nodeStates(y);
     eventEdges.forEach((j, k) => {
@@ -238,12 +336,73 @@ export function compileNetwork(net, gas) {
       const open = disc[j].open;
       out[k] = open ? e.reseat - dp : dp - e.crack;
     });
+    if (chambers.length) edgeFlows(t, y, st);
+    chambers.forEach((c, i) => {
+      out[nCheckEvents + 2 * i] = armed(c) ? contentsMargin(c, y) : -1;
+      out[nCheckEvents + 2 * i + 1] = c.burning ? -inflowMargin(c) : -1;
+    });
     return out;
   }
-  function fireEvent(k, t) {
-    const j = eventEdges[k];
-    disc[j].open = !disc[j].open;
-    return { t, id: edges[j].id, what: disc[j].open ? 'open' : 'close' };
+
+  /** Ignite chamber c at t: everything unburned burns at once. Mutates y. */
+  function ignite(c, t, y) {
+    const o = c.n.off;
+    const ub = unburned(gas, y[o + ix.O2], y[o + ix.CH4]);
+    const pCold = nodeStates(y)[c.k].p;
+    y[o + ix.PRODox] += y[o + ix.O2];
+    y[o + ix.PRODfu] += y[o + ix.CH4];
+    y[o + ix.O2] = 0;
+    y[o + ix.CH4] = 0;
+    c.burning = true;
+    c.pLast = pCold * 8;
+    const pHot = nodeStates(y)[c.k].p;
+    const ev = { t, id: c.n.id, what: 'ignition', unburnedMass: ub.mass, unburnedEnergy: ub.energy, pBefore: pCold, pAfter: pHot };
+    c.ignitions.push(ev);
+    return ev;
+  }
+
+  /** Put chamber c out at t: back to the ideal-gas node, same pressure. Mutates y. */
+  function extinguish(c, t, y) {
+    const o = c.n.off;
+    const p = nodeStates(y)[c.k].p;
+    const m = y.subarray(o, o + ns);
+    let mass = 0;
+    for (let i = 0; i < ns; i++) mass += Math.max(0, m[i]);
+    const Y = Float64Array.from(m, (v) => (mass > 0 ? Math.max(0, v) / mass : 0));
+    const T = mass > 0 ? (p * c.n.V) / (mass * mixR(gas, Y)) : c.n.T;
+    y[o + ns] = mass * mixU(gas, Y, T);
+    c.burning = false;
+    c.n.Tlast = T;
+    return { t, id: c.n.id, what: 'extinction', p };
+  }
+
+  /** Fire state event k at t with state y (which it may change). Returns the event record(s). */
+  function fireEvent(k, t, y) {
+    if (k < nCheckEvents) {
+      const j = eventEdges[k];
+      disc[j].open = !disc[j].open;
+      return { t, id: edges[j].id, what: disc[j].open ? 'open' : 'close' };
+    }
+    const c = chambers[(k - nCheckEvents) >> 1];
+    return (k - nCheckEvents) % 2 === 0 ? ignite(c, t, y) : extinguish(c, t, y);
+  }
+
+  /**
+   * Chamber modes that should already have switched but had no crossing to find: the igniter
+   * switched on into a flammable chamber, or a chamber lit into an inflow that cannot sustain it
+   * (a flash). The driver calls this after commands and events. Returns the events it fired.
+   */
+  function reconcile(t, y) {
+    const fired = [];
+    for (const c of chambers) {
+      if (armed(c) && contentsMargin(c, y) >= 0) fired.push(ignite(c, t, y));
+      if (c.burning) {
+        const st = nodeStates(y);
+        edgeFlows(t, y, st);
+        if (inflowMargin(c) < 0) fired.push(extinguish(c, t, y));
+      }
+    }
+    return fired;
   }
 
   /**
@@ -282,18 +441,49 @@ export function compileNetwork(net, gas) {
   }
 
   /**
-   * A scheduled command: valves take 'open' | 'close' | position; regulators take
-   * { pSet } or { fault }. Returns the breakpoints (s) it introduces.
+   * A scheduled command: valves take 'open' | 'close' | position, or { fault: 'stuck' | null };
+   * regulators take { pSet }, { fault: 'open' | 'closed' | { creep } | null } or { jt }; orifices
+   * take { fault: { blockage } | null }; igniters 'on' | 'off' | { fault: 'no-light' | null }.
+   * Returns the breakpoints (s) it introduces.
    */
   function command(t, id, cmd) {
+    const g = igniters.find((x) => x.id === id);
+    if (g) {
+      if (cmd === 'on' || cmd === 'off') g.on = cmd === 'on';
+      else if (cmd && 'fault' in cmd) g.fault = cmd.fault;
+      else throw new Error(`command: igniter ${id} takes 'on', 'off' or { fault }`);
+      return [t];
+    }
     const j = edgeIdx.get(id);
     if (j === undefined) throw new Error(`command: unknown edge ${id}`);
     const e = edges[j];
-    if (e.type === 'valve') return valveCommand(e, disc[j], t, cmd);
+    if (e.type === 'valve') {
+      const d = disc[j];
+      if (cmd && typeof cmd === 'object' && 'fault' in cmd) {
+        // Stuck: frozen where it is now, moving or not, and deaf to commands until cleared.
+        if (cmd.fault === 'stuck') {
+          const x = valvePosition(d, t);
+          d.segs = d.segs.filter((s) => s.ts < t);
+          d.segs.push({ ts: t, xs: x, target: x, rate: 0 });
+        }
+        d.stuck = cmd.fault === 'stuck';
+        return [t];
+      }
+      if (d.stuck) return [];
+      return valveCommand(e, d, t, cmd);
+    }
+    if (e.type === 'orifice') {
+      // Blockage: a fraction of the flow area lost (a partly plugged injector: low P_c).
+      const b = cmd?.fault?.blockage ?? (cmd?.fault === null ? 0 : undefined);
+      if (!(b >= 0 && b <= 1)) throw new Error(`command: orifice ${id} takes { fault: { blockage: 0..1 } } or { fault: null }`);
+      disc[j].blockage = b;
+      return [t];
+    }
     if (e.type === 'regulator') {
       // A new set point moves lockup with it; the droop (and so K) is a property of the regulator.
       if (cmd && 'pSet' in cmd) disc[j].pLockup = cmd.pSet + e.derived.droop;
       if (cmd && 'fault' in cmd) disc[j].fault = cmd.fault;
+      if (cmd && 'jt' in cmd) disc[j].jt = !!cmd.jt;
       return [t];
     }
     throw new Error(`command: edge ${id} (${e.type}) takes no commands`);
@@ -310,7 +500,11 @@ export function compileNetwork(net, gas) {
     });
     edges.forEach((e, j) => {
       const r = { ...flows[j] };
-      if (e.type === 'valve') r.x = valvePosition(disc[j], t);
+      if (e.type === 'valve') {
+        r.x = valvePosition(disc[j], t);
+        if (disc[j].stuck) r.stuck = true;
+      }
+      if (e.type === 'orifice' && disc[j].blockage) r.blockage = disc[j].blockage;
       if (e.type === 'check') r.open = disc[j].open;
       if (e.type === 'relief') {
         r.lift = Math.max(0, Math.min(1, y[e.off]));
@@ -320,9 +514,32 @@ export function compileNetwork(net, gas) {
         r.z = y[e.off];
         r.pLockup = disc[j].pLockup;
         r.pSet = disc[j].pLockup - e.derived.droop;
+        r.jt = disc[j].jt;
+        const up = st[r.fromA ? e.ia : e.ib];
+        r.Tout = disc[j].jt && r.mdot > 0 ? jtOutletT(jtWeights(gas, up.Y), up.p, up.T, st[e.ib].p) : up.T;
       }
       out.edges[e.id] = r;
     });
+    if (chambers.length) out.chambers = {};
+    for (const c of chambers) {
+      const s = st[c.k];
+      const o = c.n.off;
+      const ub = unburned(gas, y[o + ix.O2], y[o + ix.CH4]);
+      const rec = { burning: c.burning, p: s.p, T: s.T, unburnedMass: ub.mass, unburnedEnergy: ub.energy, ignitions: c.ignitions.length, lastIgnition: c.ignitions[c.ignitions.length - 1] || null, igniter: igniterOf(c) ? { on: igniterOf(c).on, fault: igniterOf(c).fault } : null, F: 0, CF: 0, Isp: 0, mdot: 0 };
+      if (c.burning) Object.assign(rec, { OF: s.OF, cstar: s.cstar, cstarIdeal: s.cstarIdeal, Tc: s.Tc, clamped: s.clamped });
+      if (c.throat !== undefined) {
+        const e = edges[c.throat];
+        const f = flows[c.throat];
+        const pa = st[e.ib].p;
+        const tq = thrust(s, f.mdot, f.CdA, c.n.nozzle.eps, c.n.nozzle.lambda, pa, f.choked);
+        rec.F = tq.F;
+        rec.CF = tq.CF;
+        rec.mdot = f.mdot;
+        // I_sp only means something with real flow; below 1 mg/s it is round-off over round-off.
+        rec.Isp = f.mdot > 1e-6 ? tq.F / (f.mdot * G0) : 0;
+      }
+      out.chambers[c.n.id] = rec;
+    }
     return out;
   }
 
@@ -332,7 +549,7 @@ export function compileNetwork(net, gas) {
     const sc = new Float64Array(nState).fill(1);
     let mBig = 0;
     for (const n of nodes) {
-      if (n.kind !== 'volume') continue;
+      if (n.kind === 'ambient') continue;
       const { m, U } = massesFromPTY(gas, pMax, n.T, n.Yv, n.V);
       const mRef = m.reduce((a, b) => a + b, 0);
       mBig = Math.max(mBig, mRef);
@@ -361,8 +578,8 @@ export function compileNetwork(net, gas) {
   const valveRamps = edges.filter((e) => e.type === 'valve').flatMap((e) => [e.tOpen, e.tClose]).filter((x) => x > 0);
 
   return {
-    gas, nodes, edges, disc, nState, nEvents: eventEdges.length, nKinks,
-    initialState, rhs, events, fireEvent, kinks, command, readout, scales, totals, nodeStates,
+    gas, nodes, edges, disc, nState, nEvents: eventEdges.length + 2 * chambers.length, nCheckEvents, nKinks, chambers, igniters,
+    initialState, rhs, events, fireEvent, reconcile, kinks, command, readout, scales, totals, nodeStates,
     fastestRamp: valveRamps.length ? Math.min(...valveRamps) : Infinity,
   };
 }
@@ -375,7 +592,9 @@ export function compileNetwork(net, gas) {
  * accumulation (elements/relief.js). So a failed-open regulator cannot push the manifold past
  * set + accumulation. It assumes everything downstream is shut (a closed main valve is exactly
  * when a dead-headed manifold is most exposed). Gas properties are the supply's as
- * filled; with no Joule–Thomson model yet the manifold gas is at supply temperature.
+ * filled, at supply temperature. With Joule–Thomson cooling on, the manifold gas is colder and a
+ * relief passes more mass per unit C_dA (ṁ ∝ 1/√T) while the regulator's fails-open flow, set by
+ * the supply, does not change: the rule without JT is the conservative one.
  *
  * Returns the per-regulator results; throws, naming the regulator and the C_dA it would need,
  * unless the network opts out with a stated reason.

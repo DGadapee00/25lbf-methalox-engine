@@ -59,6 +59,9 @@ input[type='range'] { width: 100%; }
 .setup h3 { margin: 0 0 6px; font-size: 14px; }
 .setup .note { color: var(--muted); font-size: 11px; margin: 8px 0 0; }
 .setup button { margin: 4px 4px 0 0; }
+.setup label.check { display: flex; align-items: center; gap: 6px; }
+.setup label.check input { width: auto; margin: 0; }
+.setup .igniter-btn { border-color: #fc6255; }
 .valve-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .seq { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; margin: 4px 0 8px; }
 .seq td { padding: 2px 6px 2px 0; }
@@ -86,6 +89,8 @@ input[type='range'] { width: 100%; }
 .pid-node { font: 11px var(--font); color: var(--muted); }
 .pid-sensor { font: 11px var(--mono); color: var(--text); text-align: center; line-height: 1.2; }
 .pid-sensor span { display: block; color: var(--muted); }
+.pid-state { font: 11px var(--mono); color: var(--muted); }
+.pid-state b { color: #fc6255; font-weight: 600; }
 button.stand { border-style: dashed; }
 @media (max-width: 720px) {
   /* A phone gets a scrolling page: schematic, readouts, controls, plot, explanation. */
@@ -100,4 +105,91 @@ button.stand { border-style: dashed; }
   .eq-panel { order: 5; }
   .legend { order: 6; justify-content: center; }
   .legend-note { display: none; }
+}
+
+/* M5: faults and the sequence report */
+.setup h4 { margin: 12px 0 4px; font-size: 13px; }
+.fault-list, .seq-report ul { padding-left: 16px; margin: 4px 0; font-size: 12px; }
+.seq-report .ok { color: var(--ok); }
+.seq-report .bad { color: var(--bad); }
+.setup button.link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 0; margin: 0 0 0 4px; cursor: pointer; }
+
+/* M6: Test mode */
+.setup .checks { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.setup .checks label.check { margin: 2px 0; font-size: 12px; }
+.setup details.synth { margin: 6px 0; font-size: 12px; color: var(--muted); }
+.setup .warn { color: var(--warn); }
+.setup .bad { color: var(--bad); }
+.setup code { font-size: 11px; }
+
+/* Inspector: hover or tap a P&ID element */
+.inspector { position: fixed; z-index: 5; width: 300px; pointer-events: none; font-size: 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+.inspector[hidden] { display: none; }
+.ins-title { font: 600 13px var(--mono); margin-bottom: 4px; }
+.ins-what { color: var(--muted); margin: 0 0 6px; }
+.ins-row { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); }
+.ins-row span:first-child { color: var(--muted); font-family: var(--font); }
+.ins-row span:last-child { text-align: right; }
+.ins-law { margin-top: 6px; font-size: 13px; }
+.ins-prov { margin: 6px 0 0; color: var(--warn); font-size: 11px; }
+.inspector .ok { color: var(--ok); } .inspector .warn { color: var(--warn); } .inspector .bad, .inspector .hot { color: var(--bad); }
+@media (max-width: 720px) { .inspector { position: fixed; width: auto; left: 8px !important; right: 8px; } }
+
+/* Guide: the guided path, top of the right panel */
+.guide { border: 1px solid var(--next); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; background: rgba(244, 211, 69, 0.05); }
+.guide[hidden] { display: none; }
+.guide-head { display: flex; justify-content: space-between; align-items: center; }
+.guide-count { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--next); }
+.guide-x { background: none; border: none; color: var(--muted); font-size: 16px; padding: 0 4px; }
+.guide-title { font-weight: 600; font-size: 15px; margin: 2px 0; }
+.guide-goal { color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+.guide-steps { margin: 4px 0; padding-left: 20px; font-size: 13px; }
+.guide-steps li { margin: 4px 0; color: var(--muted); }
+.guide-steps li.now { color: var(--text); }
+.guide-steps li.done { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(154,149,145,0.5); }
+.guide-steps li.done::marker { content: '✓  '; color: var(--ok); }
+.guide-act { display: block; margin-top: 4px; font-size: 12px; }
+.guide-take { font-size: 12px; margin: 6px 0; color: var(--text); }
+.guide-nav { display: flex; gap: 4px; align-items: center; margin-top: 6px; }
+.guide-nav select { flex: 1; min-width: 0; font: inherit; font-size: 12px; color: var(--text); background: #1c1f24; border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px; }
+.guide-go { width: 100%; margin: 4px 0; }
+/* The one control to press next (brief §5.3): yellow, and nothing else is. */
+.guide-next { outline: 2px solid var(--next) !important; outline-offset: 2px; box-shadow: 0 0 12px rgba(244, 211, 69, 0.45); }
+button.guide-next { border-color: var(--next); color: var(--next); }
+
+/* Welcome */
+.welcome { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); padding: 16px; }
+.welcome[hidden] { display: none; }
+.welcome-card { max-width: 560px; padding: 18px 20px; font-size: 14px; background: rgba(20, 22, 26, 0.97); }
+.welcome-card h2 { margin: 0 0 8px; font-size: 18px; }
+.welcome-card p, .welcome-card li { color: var(--muted); }
+.welcome-card b { color: var(--text); }
+.welcome-card .warn { color: var(--warn); }
+.welcome-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.setup .purpose { color: var(--warn); }
+
+/* Glossary drawer */
+.glossary { top: 150px; right: 344px; width: 380px; max-height: calc(100vh - 290px); overflow: auto; z-index: 4; }
+.glossary[hidden] { display: none; }
+.gl-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.gl-search { width: 100%; font: inherit; color: var(--text); background: #1c1f24; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.gl-list { margin: 8px 0 0; }
+.gl-item { margin: 0 0 10px; }
+.gl-item[hidden] { display: none; }
+.gl-item dt { font-weight: 600; font-size: 13px; }
+.gl-item dd { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.gl-formula { margin: 4px 0; color: var(--text); font-size: 13px; }
+.gl-where { font-size: 11px; color: var(--muted); font-style: italic; }
+@media (max-width: 720px) { .glossary { position: fixed; inset: 8px; width: auto; max-height: none; } }
+.welcome-keys { font-size: 12px; }
+kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: var(--text); }
+.valve-btn.open { border-color: var(--ok); color: var(--ok); }
+.valve-btn.pending { border-style: dashed; }
+@media (max-width: 720px) { #app > .guide { order: 0; margin: 0; background: var(--panel); } }
+
+/* The plot keeps its top edge (the stands' layout was checked against it) and gives up height
+   when the readout bar below it grows. */
+@media (min-width: 721px) {
+  .plot-panel { bottom: calc(var(--rb, 84px) + 12px); height: calc(200px - max(0px, var(--rb, 84px) - 84px)); }
+  .legend { bottom: calc(var(--rb, 84px) + 16px); }
 }

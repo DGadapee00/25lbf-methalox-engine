@@ -108,3 +108,29 @@ export const COLD_FLOW_SCHEDULE = [
   { t: 1.45, id: 'SV-OX-01', cmd: 'close' },
   { t: 1.5, id: 'SV-N2-01', cmd: 'open' },
 ];
+
+/**
+ * A hot-fire run on the hot-fire stand, for V-4, V-8 and the ignition checks. FIXTURE timings,
+ * chosen to exercise the chamber model: they are not a proposed sequence, and the real hot-fire
+ * sequence is Dalton's decision (brief §5.4). Ox valve leads the fuel valve by 50 ms; the igniter
+ * is switched off after the main valves shut, then the purge runs.
+ */
+export const HOT_FIRE_FIXTURE = [
+  { t: 0, id: 'HV-OX-01', cmd: 'open' },
+  { t: 0, id: 'HV-FU-01', cmd: 'open' },
+  { t: 0, id: 'HV-N2-01', cmd: 'open' },
+  { t: 1.0, id: 'IGN-IG-01', cmd: 'on' },
+  { t: 1.1, id: 'SV-OX-01', cmd: 'open' },
+  { t: 1.15, id: 'SV-FU-01', cmd: 'open' },
+  { t: 3.0, id: 'SV-FU-01', cmd: 'close' },
+  { t: 3.05, id: 'SV-OX-01', cmd: 'close' },
+  { t: 3.05, id: 'IGN-IG-01', cmd: 'off' },
+  { t: 3.2, id: 'SV-N2-01', cmd: 'open' },
+];
+export const HOT_FIRE_FIXTURE_END = 3.6;
+
+/**
+ * The M5 abort table is the training table in data/trainingTables.js: one table serves the
+ * self-test and the guide, so the lesson plays exactly what the self-test checks.
+ */
+export { TRAINING_ABORTS as ABORT_FIXTURE } from '../../data/trainingTables.js';

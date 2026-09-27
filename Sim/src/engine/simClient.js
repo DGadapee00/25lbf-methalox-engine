@@ -23,10 +23,11 @@ export function createSimClient(onMessage) {
   };
   worker.onerror = (e) => onMessage({ type: 'error', message: e.message || 'worker error' });
   return {
-    init(stand, schedule) {
+    /** opts: { sequence?: table in the Test_Stand/sequences format, faults?: [{ t, id, cmd }] }. */
+    init(stand, opts = {}) {
       busy = true;
       seekTo = null;
-      worker.postMessage({ type: 'init', stand, schedule: schedule || [] });
+      worker.postMessage({ type: 'init', stand, sequence: opts.sequence || null, faults: opts.faults || [] });
     },
     command(id, cmd) {
       worker.postMessage({ type: 'cmd', id, cmd });

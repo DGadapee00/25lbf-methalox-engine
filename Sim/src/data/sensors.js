@@ -22,3 +22,25 @@ export function pressureChannel(tag, node, c = components(), extra = {}) {
     ...extra,
   };
 }
+
+/**
+ * Thrust load-cell channel: reads the chamber's thrust F (N), not a node pressure. Range, lag, bits
+ * and noise from components.json (`lc` shared, per-tag `range`), placeholders until a load cell is
+ * selected (issue #6).
+ */
+export function forceChannel(tag, chamber, c = components(), extra = {}) {
+  const lc = c.lc;
+  const part = c[tag];
+  if (!part?.range) throw new Error(`sensors: ${tag} has no range in components.json`);
+  return {
+    tag,
+    node: chamber,
+    quantity: 'F',
+    unit: 'N',
+    range: part.range,
+    bits: lc.bits,
+    tau: lc.tau,
+    noise: lc.noise,
+    ...extra,
+  };
+}

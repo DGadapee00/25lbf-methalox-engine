@@ -8,7 +8,7 @@
  * `provenance()` lists what the UI labels as placeholder or uncalibrated.
  */
 import raw from '../../data/components.json' with { type: 'json' };
-import { PSI, INCH } from '../physics/constants.js';
+import { PSI, INCH, LBF } from '../physics/constants.js';
 import { cvToCdA } from '../physics/elements/orifice.js';
 
 const TO_SI = {
@@ -24,6 +24,8 @@ const TO_SI = {
   ms: 1e-3,
   s: 1,
   K: 1,
+  deg: Math.PI / 180,
+  lbf: LBF,
   1: 1,
 };
 

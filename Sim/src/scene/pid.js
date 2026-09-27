@@ -16,8 +16,9 @@ import { parseTag } from '../data/tags.js';
  * - Choke indicator on every orifice (§5.2): green p₀/p ≥ 2.2, amber choked but below 2.2, red
  *   unchoked.
  * - Flow dots move along each pipe at a speed ∝ ṁ, in the direction of flow.
- * - Every element carries its tag; transducers show their node's pressure.
- * - Valves are pickable: pick(ndc, camera) returns the tag under the pointer.
+ * - Every element carries its tag; transducers show their node's pressure (a load cell its thrust).
+ * - A chamber that burns shows a flame and its state; an igniter is a spark symbol, lit when on.
+ * - Valves and igniters are pickable: pick(ndc, camera) returns the tag under the pointer.
  *
  * It reads pressures and flows only; it never computes physics.
  */
@@ -78,6 +79,9 @@ export class PidView {
     this.nodes = [];
     this.picks = [];
     this.sensors = [];
+    this.flames = [];
+    this.igniters = [];
+    this.hits = [];
     this._c = new THREE.Color();
     this.raycaster = new THREE.Raycaster();
     this.dotGeo = new THREE.CircleGeometry(0.06, 12);
@@ -96,6 +100,11 @@ export class PidView {
     this.nodes = [];
     this.picks = [];
     this.sensors = [];
+    this.flames = [];
+    this.igniters = [];
+    this.hits = [];
+    this.nextRing = null;
+    this.nextTag = null;
   }
 
   /**
@@ -105,6 +114,17 @@ export class PidView {
   build(stand, { circuitColor = Q.ox } = {}) {
     this.clear();
     const { net, layout } = stand;
+    this.net = net;
+    this.gas = stand.gas || null;
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    // Inspector targets: an invisible disc or plate over every element (inspect(ndc) → { kind, id }).
+    const addHit = (geo, x, y, info) => {
+      const m = new THREE.Mesh(geo, hitMat);
+      m.position.set(x, y, 0.045);
+      m.userData.inspect = info;
+      this.hits.push(m);
+      this.group.add(m);
+    };
     const nodeById = Object.fromEntries(net.nodes.map((n) => [n.id, n]));
     // A node with a layout position is drawn there (an ambient one as a fixed-pressure reservoir);
     // an ambient node without one is drawn as a vent at the end of each edge that reaches it.
@@ -130,6 +150,19 @@ export class PidView {
         fill = add(new THREE.Mesh(new THREE.PlaneGeometry(2 * w, 2 * h), new THREE.MeshBasicMaterial({ color: 0x333333 })));
         fill.position.set(x, y, 0.01);
         add(fatLine([x - w, y - h, 0.03, x + w * 0.55, y - h, 0.03, x + w, y - 0.15, 0.03, x + w, y + 0.15, 0.03, x + w * 0.55, y + h, 0.03, x - w, y + h, 0.03, x - w, y - h, 0.03], { color: Q.hot, width: 2.5 }));
+        if (n.kind === 'chamber') {
+          // Flame: a hot core inside a red envelope, shown only while the chamber burns.
+          const flame = new THREE.Group();
+          const outer = new THREE.Mesh(new THREE.CircleGeometry(0.42, 28), new THREE.MeshBasicMaterial({ color: Q.hot, transparent: true, opacity: 0.85 }));
+          outer.scale.set(1.5, 0.95, 1);
+          const core = new THREE.Mesh(new THREE.CircleGeometry(0.2, 20), new THREE.MeshBasicMaterial({ color: Q.hotCore, transparent: true, opacity: 0.9 }));
+          core.scale.set(1.6, 0.9, 1);
+          core.position.z = 0.001;
+          flame.add(outer, core);
+          flame.position.set(x, y, 0.02);
+          flame.visible = false;
+          this.flames.push({ id: n.id, flame: add(flame), state: add(label('', x, y - h - 0.78, 'pid-state')) });
+        }
       } else if (kind === 'reservoir') {
         const w = 0.5;
         fill = add(new THREE.Mesh(new THREE.PlaneGeometry(2 * w, 2 * w), new THREE.MeshBasicMaterial({ color: 0x333333 })));
@@ -148,6 +181,8 @@ export class PidView {
           ? add(label(n.label || n.id, x + 0.16, y - 0.16, 'pid-node', [0, 0]))
           : add(label(n.label || n.id, x, y - ({ bottle: 1.55, chamber: 0.85, reservoir: 0.8 }[kind] ?? 0.35), 'pid-node'));
       this.nodes.push({ id: n.id, fill, name, kind });
+      const size = { bottle: [1.0, 2.4], chamber: [1.8, 1.1], reservoir: [1.0, 1.0] }[kind];
+      addHit(size ? new THREE.PlaneGeometry(size[0], size[1]) : new THREE.CircleGeometry(0.3, 16), x, y, { kind: 'node', id: n.id });
     }
 
     // Edges: two half pipes, a symbol, flow dots, a tag, and for orifices a choke indicator.
@@ -218,6 +253,25 @@ export class PidView {
         this.picks.push(add(hit));
       }
       this.edges.push(rec);
+      addHit(new THREE.CircleGeometry(e.type === 'orifice' ? 0.34 : S * 1.5, 16), Mid[0], Mid[1], { kind: 'edge', id: e.id });
+    }
+
+    // Igniters: a spark in a circle, wired to its chamber, pickable like a valve.
+    for (const g of net.igniters || []) {
+      const P = layout.igniters?.[g.id];
+      const C = layout.nodes[g.chamber];
+      if (!P || !C) continue;
+      const [x, y] = P;
+      add(fatLine([x, y + 0.3, 0.02, C[0], C[1] - 0.55, 0.02], { color: M.grey, width: 1.5, dashed: true }));
+      const ring = add(fatLine(Array.from({ length: 25 }, (_, k) => [x + 0.3 * Math.cos((2 * Math.PI * k) / 24), y + 0.3 * Math.sin((2 * Math.PI * k) / 24), 0.02]).flat(), { color: M.grey, width: 2 }));
+      const bolt = add(fatLine([x - 0.08, y + 0.2, 0.03, x + 0.06, y + 0.02, 0.03, x - 0.06, y - 0.02, 0.03, x + 0.08, y - 0.2, 0.03], { color: M.grey, width: 2.5 }));
+      const tag = add(label(g.id, x + 0.45, y, 'pid-tag', [0, 0.5]));
+      const hit = new THREE.Mesh(new THREE.CircleGeometry(0.5, 16), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.set(x, y, 0.05);
+      hit.userData.tag = g.id;
+      this.picks.push(add(hit));
+      this.igniters.push({ id: g.id, chamber: g.chamber, ring, bolt, tag });
+      addHit(new THREE.CircleGeometry(0.5, 16), x, y, { kind: 'igniter', id: g.id });
     }
 
     for (const s of stand.sensors || []) {
@@ -227,6 +281,7 @@ export class PidView {
       add(fatLine(Array.from({ length: 25 }, (_, k) => [x + ox + 0.28 * Math.cos((2 * Math.PI * k) / 24), y + oy + 0.28 * Math.sin((2 * Math.PI * k) / 24), 0.02]).flat(), { color: M.grey, width: 1.5 }));
       const lab = add(label(`<b>${s.tag}</b><span></span>`, x + ox, y + oy + 0.55, 'pid-sensor'));
       this.sensors.push({ ...s, lab });
+      addHit(new THREE.CircleGeometry(0.34, 16), x + ox, y + oy, { kind: 'sensor', id: s.tag });
     }
     this.pAmb = Math.min(...net.nodes.map((n) => n.p), 101325);
     this.pMax = Math.max(...net.nodes.map((n) => n.p));
@@ -243,9 +298,15 @@ export class PidView {
    * Update from a network readout ({ nodes: {id: {p}}, edges: {id: {mdot, choked, margin, x,
    * lift, z}} }). dt (s, real time) advances the flow dots; fmtP formats sensor values.
    */
-  update(readout, dt, fmtP) {
+  update(readout, dt, fmtP, fmtF) {
     if (!readout) return;
+    this.last = readout;
+    if (this.nextRing?.visible) {
+      this.pulse = ((this.pulse || 0) + (dt || 0) * 5) % (2 * Math.PI);
+      this.nextRing.scale.setScalar(1 + 0.12 * Math.sin(this.pulse));
+    }
     if (fmtP) this.fmtP = fmtP;
+    if (fmtF) this.fmtF = fmtF;
     const pOf = (id) => readout.nodes[id]?.p ?? this.pAmb;
     for (const n of this.nodes) n.fill.material.color.copy(rampColorCVD(this.rampT(pOf(n.id)), this._c));
     const mRef = Math.max(1e-6, ...Object.values(readout.edges).map((r) => Math.abs(r.mdot || 0)));
@@ -276,8 +337,29 @@ export class PidView {
       });
     }
     for (const s of this.sensors) {
+      if (s.quantity === 'F') {
+        const F = readout.measured?.[s.tag] ?? readout.chambers?.[s.node]?.F ?? 0;
+        setText(s.lab, `<b>${s.tag}</b><span>${this.fmtF ? this.fmtF(F) : ''}</span>`);
+        continue;
+      }
       const p = readout.measured?.[s.tag] ?? pOf(s.node);
       setText(s.lab, `<b>${s.tag}</b><span>${this.fmtP ? this.fmtP(p) : ''}</span>`);
+    }
+    for (const f of this.flames) {
+      const c = readout.chambers?.[f.id];
+      const burning = !!c?.burning;
+      f.flame.visible = burning;
+      if (burning) {
+        this.flicker = ((this.flicker || 0) + (dt || 0) * 9) % (2 * Math.PI);
+        f.flame.scale.setScalar(0.92 + 0.08 * Math.sin(this.flicker));
+      }
+      setText(f.state, c ? (burning ? '<b>burning</b>' : c.unburnedMass > 1e-7 ? 'unburned propellant' : 'cold') : '');
+    }
+    for (const g of this.igniters) {
+      const on = !!readout.chambers?.[g.chamber]?.igniter?.on;
+      const col = on ? M.white : M.grey;
+      g.ring.material.color.setHex(col);
+      g.bolt.material.color.setHex(on ? Q.hot : M.grey);
     }
   }
 
@@ -286,6 +368,53 @@ export class PidView {
     this.raycaster.setFromCamera(ndc, camera);
     const hit = this.raycaster.intersectObjects(this.picks, false)[0];
     return hit ? hit.object.userData.tag : null;
+  }
+
+  /**
+   * The one control to press next (brief §5.3: yellow is reserved for it): a pulsing yellow ring on
+   * the element with this tag or node id, or none for null. Used by the guide.
+   */
+  setNext(tag) {
+    if (tag === this.nextTag) return;
+    this.nextTag = tag;
+    if (!this.nextRing) {
+      this.nextRing = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.56, 40), new THREE.MeshBasicMaterial({ color: Q.next, transparent: true, opacity: 0.95, depthWrite: false }));
+      this.nextRing.visible = false;
+      this.group.add(this.nextRing);
+    }
+    const at = this.positionOf(tag);
+    this.nextRing.visible = !!at;
+    if (at) this.nextRing.position.set(at[0], at[1], 0.08);
+  }
+
+  /** Scene position of an edge's symbol, an igniter, a sensor or a node, by id. */
+  positionOf(id) {
+    if (!id) return null;
+    const e = this.edges.find((r) => r.id === id);
+    if (e) return [(e.A[0] + e.B[0]) / 2, (e.A[1] + e.B[1]) / 2];
+    const h = this.hits.find((m) => m.userData.inspect.id === id);
+    return h ? [h.position.x, h.position.y] : null;
+  }
+
+  /** What is under the pointer, for the inspector: { kind: 'node' | 'edge' | 'igniter' | 'sensor', id } or null. */
+  inspect(ndc, camera, slack = null) {
+    if (!this.group.visible) return null;
+    this.raycaster.setFromCamera(ndc, camera);
+    const hit = this.raycaster.intersectObjects(this.hits, false)[0];
+    if (hit || !slack) return hit ? hit.object.userData.inspect : null;
+    // A fingertip is bigger than a symbol on a phone: take the nearest element within slack.px.
+    const v = new THREE.Vector3();
+    let best = null;
+    let bestD = slack.px;
+    for (const m of this.hits) {
+      v.copy(m.position).project(camera);
+      const d = Math.hypot(((v.x - ndc.x) * slack.w) / 2, ((v.y - ndc.y) * slack.h) / 2);
+      if (d < bestD) {
+        bestD = d;
+        best = m.userData.inspect;
+      }
+    }
+    return best;
   }
 
   /** Choke state per orifice, for readouts and the smoke test. */

@@ -19,15 +19,18 @@
         <div class="mode-switch" role="tablist" aria-label="Mode">
           <button type="button" role="tab" id="mode-operate" class="active" aria-selected="true">Operate</button>
           <button type="button" role="tab" id="mode-sequence" aria-selected="false">Sequence</button>
-          <button type="button" role="tab" id="mode-test" aria-selected="false" disabled title="Arrives in M6">Test</button>
+          <button type="button" role="tab" id="mode-test" aria-selected="false">Test</button>
         </div>
         <button type="button" class="btn ghost" id="units-toggle" title="Switch psia/lbf ↔ kPa/N">US units</button>
+        <button type="button" class="btn ghost" id="guide-btn" title="The guided path: thirteen lessons, from one bottle to a hot fire and the S-3 question">Guide</button>
+        <button type="button" class="btn ghost" id="glossary-btn" title="What the terms mean">Glossary</button>
         <nav class="lab-tabs" id="lab-tabs" role="tablist" aria-label="Labs"></nav>
       </header>
 
       <aside class="hud panel setup" id="setup" aria-label="Setup"></aside>
 
       <aside class="hud panel eq-panel" aria-label="Laws and live values">
+        <section class="guide" id="guide" aria-label="Guide" hidden></section>
         <div class="lab-status" id="lab-status"></div>
         <div class="law" id="law"></div>
         <div class="eq-live" id="eq-live"></div>
@@ -42,6 +45,27 @@
       <div class="hud legend" aria-label="Line pressure colour scale">
         <span>ambient</span><div class="legend-bar" id="legend-bar"></div><span>stand max</span>
         <span class="legend-note">line pressure (log)</span>
+      </div>
+
+      <div class="hud panel inspector" id="inspector" role="tooltip" hidden></div>
+
+      <aside class="hud panel glossary" id="glossary" aria-label="Glossary" hidden></aside>
+
+      <div class="welcome" id="welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
+        <div class="panel welcome-card">
+          <h2 id="welcome-title">The 25 lbf methalox test stand, before it exists</h2>
+          <p>An operable model of the engine's feed system and chamber: bottles, regulators, valves, injectors, the chamber and the purge. Open valves, fail a regulator, light the chamber, rehearse a sequence with aborts, and fit the model to test data.</p>
+          <p>It is a tool for being proven wrong by hardware as early as possible. Most component values are placeholders and nothing is calibrated yet; the orange <b class="warn">uncalibrated</b> badge means exactly that. It never replaces a test.</p>
+          <ul>
+            <li><b>Guided path:</b> thirteen short lessons, from one bottle emptying to a hot fire, its aborts, the predict-test-fit loop and the open choke-margin question. The next thing to press is marked in yellow.</li>
+            <li><b>On your own:</b> hover anything on the schematic for what it is and its live state; answer the Predict first cards; open the Glossary for the terms.</li>
+          </ul>
+          <p class="welcome-keys">Keys: <kbd>Space</kbd> pause · <kbd>R</kbd> reset · <kbd>G</kbd> guide · <kbd>?</kbd> glossary · <kbd>Esc</kbd> close</p>
+          <div class="welcome-buttons">
+            <button type="button" id="welcome-start" class="guide-next">Start the guided path</button>
+            <button type="button" id="welcome-explore">Explore on my own</button>
+          </div>
+        </div>
       </div>
 
       <footer class="hud panel readout-bar">

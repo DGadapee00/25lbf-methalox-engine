@@ -5,8 +5,12 @@
  * A step is { t, cmd: { TAG: "open" | "close" | { ... } }, note? }, the brief's shape. The driver
  * and the stand UI take a flat list { t, id, cmd }. expandSequence does that and nothing else.
  * Timings in a file are that sequence's timings. This module does not invent any.
+ *
+ * Aborts, checks and abort actions (M5) are parsed here and run by physics/sequencer.js; their
+ * grammar is documented there. A file with none of them plays exactly as before.
  */
 import gn2Step1 from '../../../Test_Stand/sequences/gn2-step1.json' with { type: 'json' };
+import { parseAbortCondition, parseCheck } from '../physics/sequencer.js';
 
 const FILES = {
   'gn2-step1': gn2Step1,
@@ -26,7 +30,23 @@ export function expandSequence(raw) {
       steps.push(step);
     }
   }
-  return { id: raw.id, purpose: raw.purpose || '', tEnd: raw.tEnd, rateHz: raw.rateHz, steps };
+  const actions = {};
+  for (const [name, list] of Object.entries(raw.actions || {})) {
+    if (!Array.isArray(list)) throw new Error(`sequence ${raw.id}: action ${name} must be a list of { dt, cmd }`);
+    actions[name] = list.map((a) => {
+      if (!(a.dt >= 0) || !a.cmd || typeof a.cmd !== 'object') throw new Error(`sequence ${raw.id}: action ${name} needs dt ≥ 0 and a cmd object`);
+      return { dt: a.dt, cmd: a.cmd };
+    });
+  }
+  const aborts = (raw.aborts || []).map((a) => {
+    if (!a.id || !a.when || !a.action) throw new Error(`sequence ${raw.id}: an abort needs id, when and action`);
+    return { ...a, cond: parseAbortCondition(a.when) };
+  });
+  const checks = (raw.checks || []).map((c) => {
+    if (!c.id || !c.expect) throw new Error(`sequence ${raw.id}: a check needs id and expect`);
+    return { ...c, rule: parseCheck(c.expect) };
+  });
+  return { id: raw.id, purpose: raw.purpose || '', tEnd: raw.tEnd, rateHz: raw.rateHz, steps, aborts, checks, actions };
 }
 
 /** The expanded sequence the driver plays. */

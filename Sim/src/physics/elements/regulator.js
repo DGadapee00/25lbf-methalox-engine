@@ -28,7 +28,9 @@
  *   as a single-stage regulator typically does. It is a datasheet property; there is no default.
  * - Faults: 'open' (C_dA = C_dA_max whatever the poppet), 'closed' (C_dA = 0), or
  *   { creep: C_dA }, a seat leak: the larger of creep and the poppet's own area.
- * - Joule–Thomson cooling is not modelled yet (M4): throttling here is isenthalpic ideal gas.
+ * - Joule–Thomson cooling (M4) is the network's, not this element's: with `jt: true` on the edge
+ *   (or the { jt } command) the outlet gas is delivered at its real-gas isenthalpic temperature
+ *   (physics/jt.js). Off by default: then throttling is isenthalpic ideal gas and T is unchanged.
  *
  * The clamp makes z_cmd non-smooth where it saturates; the adaptive step shrinks through those
  * kinks rather than locating them as events. See docs/solver.md §5 for when this loop rings.
