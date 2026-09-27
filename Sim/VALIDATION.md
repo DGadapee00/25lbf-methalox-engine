@@ -15,5 +15,6 @@ conservation laws and published values. This file is validation — the model ag
 - **V-10b (gas-valve sizing, x_T): open, blocked on D-5.** Liquid equivalence ignores a valve's
   pressure-recovery factor, which matters for gas service near choking. Once a valve is
   selected, check against the vendor's published gas-sizing method. Reported as PENDING.
-- **V-4 over a hot-fire sequence:** runs over a cold-flow sequence until the chamber model
-  exists (M4).
+- **V-4 over a hot-fire sequence: closed in M4 as verification.** The self-test runs it over a
+  hot-fire run on the hot-fire stand with fixture timings (not a proposed sequence): mass to
+  round-off through ignition, burn and shutdown. Nothing here has been compared with hardware.

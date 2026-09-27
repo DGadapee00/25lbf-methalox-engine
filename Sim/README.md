@@ -14,8 +14,9 @@ test step.** Until a component has been calibrated against measured data, it is 
 | M0 Scaffold | done: app shell, tests, CI, Pages deploy |
 | M1 Component library + network solver (headless) | done: V-1 to V-6 (plus V-3, V-9, regulator settling); see [docs/solver.md](docs/solver.md) |
 | M2 Component labs + P&ID view, GN₂ cold-flow stand in Operate mode | done: Blowdown, Orifice, Regulator; live stand in a Web Worker |
-| M3 Full stand, cold flow | this: two propellant circuits and a purge, all bottles GN₂; sequence table (`Test_Stand/sequences/gn2-step1.json`) and timeline scrub; Phase 5 step 1 and step 3 predictions in `predictions/phase5.json`. Rosenbrock, DAQ CSV, the valve-timing lab and the injector lab are included |
-| M4–M7 | chamber fill onward |
+| M3 Full stand, cold flow | done: two propellant circuits and a purge, all bottles GN₂; sequence table (`Test_Stand/sequences/gn2-step1.json`) and timeline scrub; Phase 5 step 1 and step 3 predictions in `predictions/phase5.json`. Rosenbrock, DAQ CSV, the valve-timing lab and the injector lab are included |
+| M4 Hot fire | done: chamber combustion state from the CEA table (`data/cea_gox_gch4.json`), ignition inside the CH₄/O₂ flammability limits with the unburned-propellant (hard-start) metric, thrust and I_sp, regulator Joule–Thomson (CoolProp). Chamber-fill lab (lab 6) and a hot-fire stand in Operate; no hot-fire sequence is invented. V-7 and V-8 in `npm test`; see [docs/solver.md §6d](docs/solver.md) |
+| M5–M7 | faults and aborts, Test mode, SIL |
 
 ## Run it
 
@@ -40,7 +41,7 @@ Sim/
 ├── index.html, vite.config.js, package.json
 ├── src/
 │   ├── main.js            # app shell: router, lab mount, panels, render loop
-│   ├── labs/              # defineLab() contract, loader; blowdown, orifice, regulator, valve timing, injector, stand
+│   ├── labs/              # defineLab() contract, loader; blowdown, orifice, regulator, valve timing, injector, chamber fill, stand
 │   ├── engine/            # router (#/lab/<id>, #/stand/<id>); physics Web Worker and its client
 │   ├── scene/             # three.js: renderer, palette, P&ID view (pid.js)
 │   ├── ui/                # KaTeX helpers, units formatting, plots, predict-first cards
@@ -53,12 +54,16 @@ Sim/
 │       ├── sensors.js     # transducer lag, noise, quantization (not an ODE state)
 │       ├── daq.js         # stand-daq-v1 CSV (Test_Stand/daq_format.md)
 │       ├── simulate.js    # driver: breakpoints, state events, sampling, stats; steppable runs
+│       ├── chamber.js     # combustion chamber: ignition, burning state, thrust, unburned metric
+│       ├── cea.js, jt.js  # CEA table lookup; Joule–Thomson integral over the CoolProp table
 │       ├── analysis.js    # derived readouts: fails-open peak manifold pressure
 │       ├── predictions.js # Phase 5 step 1 and step 3 from the cold-flow model
 │       └── selftest/      # npm test suites, one per topic
 ├── scripts/               # smoke, headless guard, shell checks, live
-├── tools/                 # offline generators for data/ (Python)
-├── data/                  # JSON tables (thermo) and stand defaults (components.json), each sourced
+├── tools/                 # offline generators for data/ (Python): nasa7.py, props.py
+├── data/                  # JSON tables (thermo, CEA, JT, flammability) and stand defaults
+│                          # (components.json), each sourced. The CEA generator lives in
+│                          # Phase1_Calculations/cea/ (brief §4.8)
 └── docs/                  # solver.md and other design notes
 ```
 
