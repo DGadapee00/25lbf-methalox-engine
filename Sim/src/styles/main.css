@@ -63,6 +63,8 @@ input[type='range'] { width: 100%; }
 .seq { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; margin: 4px 0 8px; }
 .seq td { padding: 2px 6px 2px 0; }
 .seq tr.now { color: var(--next); }
+.scrub { display: block; margin: 6px 0; font-size: 12px; }
+.scrub input { width: 100%; }
 .prov { margin-top: 10px; font-size: 11px; color: var(--muted); }
 .prov ul { padding-left: 16px; margin: 4px 0; max-height: 180px; overflow: auto; }
 .prov .placeholder, .caveat { color: var(--warn); }

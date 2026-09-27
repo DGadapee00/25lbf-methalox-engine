@@ -29,6 +29,10 @@
     "fails-open peak PCV-OX-01, τ_lift 8 ms": 455,
     "fails-open peak PCV-FU-01, τ_lift 8 ms": 433,
     "stand GN2 cold-flow sequence": 2159,
-    "stand fails-open peak": 213
+    "stand fails-open peak": 213,
+    "full stand step1 to 0.5 s": 464,
+    "full stand scrub replay to 0.4 s": 443,
+    "phase5 step1 prediction": 2158,
+    "phase5 step3 blowdown": 647
   }
 }

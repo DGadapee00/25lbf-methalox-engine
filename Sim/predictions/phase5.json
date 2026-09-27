@@ -1,0 +1,111 @@
+{
+  "uncalibrated": true,
+  "label": "Placeholder hardware (issue #6) and an uncalibrated injector Cd. Not a prediction of what the hardware will do.",
+  "step1": {
+    "id": "phase5-step1",
+    "what": "GN2 cold flow on the oxidizer circuit: leak check, valve timing, sequencer dry run",
+    "sequence": "gn2-step1",
+    "stand": "gn2-coldflow",
+    "uncalibrated": true,
+    "flowing": {
+      "t_s": 4.499999999999992,
+      "manifold_Pa": 3316900.1481240178,
+      "injector_mdot_kg_s": 0.03624609477178701,
+      "choked": true,
+      "margin": 10.601676716460851
+    },
+    "beforeMainValve": {
+      "t_s": 2.000000000000001,
+      "injector_mdot_kg_s": -7.842943024639848e-17,
+      "line_Pa": 101324.99999999991
+    },
+    "afterShutdown": {
+      "t_s": 7,
+      "line_Pa": 101324.99986704887,
+      "chamber_Pa": 101325.00000294094
+    }
+  },
+  "step3": {
+    "id": "phase5-step3",
+    "what": "GN2 blowdown through both injectors. Valves that open the path are commanded together at t = 0; the horizon is how long the integration runs, not a procedure.",
+    "gas": "N2",
+    "stand": "full-stand",
+    "horizon_s": 4,
+    "commands": [
+      {
+        "t": 0,
+        "id": "HV-OX-01",
+        "cmd": "open"
+      },
+      {
+        "t": 0,
+        "id": "HV-FU-01",
+        "cmd": "open"
+      },
+      {
+        "t": 0,
+        "id": "SV-OX-01",
+        "cmd": "open"
+      },
+      {
+        "t": 0,
+        "id": "SV-FU-01",
+        "cmd": "open"
+      }
+    ],
+    "uncalibrated": true,
+    "note": "Nitrogen through the propellant orifice geometry. These mass flows are not the GOX 38.8 g/s and GCH4 13.9 g/s design points.",
+    "ox": {
+      "injector": "INJ-OX-01",
+      "mdot_kg_s": 0.03629435897960116,
+      "choked": true,
+      "margin": 7.041115843388739,
+      "manifold_Pa": 3315309.2565075373,
+      "line": {
+        "p": 3284648.651822244,
+        "T": 290.98360506202425,
+        "Y": [
+          0,
+          0,
+          1.0000000000027054
+        ]
+      },
+      "chamber": {
+        "p": 466495.47101349954,
+        "T": 291.338445611621,
+        "Y": [
+          0,
+          0,
+          1.0000000000001648
+        ]
+      }
+    },
+    "fu": {
+      "injector": "INJ-FU-01",
+      "mdot_kg_s": 0.01832001608216157,
+      "choked": true,
+      "margin": 6.978679519185409,
+      "manifold_Pa": 3263428.7570376284,
+      "line": {
+        "p": 3255522.3893546597,
+        "T": 292.03563119332904,
+        "Y": [
+          0,
+          1.8364183088931224e-16,
+          0.9999999999999999
+        ]
+      },
+      "chamber": {
+        "p": 466495.47101349954,
+        "T": 291.338445611621,
+        "Y": [
+          0,
+          0,
+          1.0000000000001648
+        ]
+      }
+    },
+    "purge_mdot_kg_s": 0,
+    "purge_open": false
+  }
+}

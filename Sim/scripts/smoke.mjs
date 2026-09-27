@@ -46,6 +46,15 @@ try {
     await page.evaluate((h) => (location.hash = h), `#/${lab.kind}/${lab.id}`);
     await page.waitForFunction((id) => window.__sim?.app?.id === id && !window.__sim.app.dirty && window.__sim.app.computed[id], lab.id, { timeout: 20000 });
     if (lab.kind === 'stand') {
+      // Mode is global. A stand opened after Sequence keeps playing the table, and the
+      // valve clicks below are ignored outside Operate.
+      if (await page.evaluate(() => window.__sim.app.mode) !== 'operate') {
+        await page.click('#mode-operate');
+        await page.waitForFunction((id) => {
+          const c = window.__sim.app.computed[id];
+          return c?.mode === 'operate' && c.readout && c.t < 2;
+        }, lab.id, { timeout: 30000 });
+      }
       // Drive the live stand: bottle isolation open, then the main valve, at 5× time.
       await page.waitForFunction((id) => window.__sim.app.computed[id]?.readout, lab.id, { timeout: 20000 });
       await page.evaluate((id) => {
@@ -70,15 +79,27 @@ try {
       } else if (!(relErr(v, spec.value) <= spec.tol)) mismatches.push({ name: `${lab.id}: ${key}`, got: v, exp: spec.value, tol: spec.tol });
     }
     console.log(`  loaded  ${lab.kind}/${lab.id}`);
-    if (lab.id === 'gn2-coldflow') {
+    if (lab.kind === 'stand') {
       // Sequence mode, after the operate baseline: the step-1 table opens HV-OX-01 by itself.
       await page.click('#mode-sequence');
       await page.waitForFunction((id) => {
         const c = window.__sim.app.computed[id];
         const x = c?.readout?.edges['HV-OX-01']?.x ?? 0;
         return c?.mode === 'sequence' && c.t > 0.15 && c.t < 1.2 && x > 0;
-      }, lab.id, { timeout: 20000 });
-      console.log('  sequence opened HV-OX-01 from the table');
+      }, lab.id, { timeout: 30000 });
+      console.log(`  sequence opened HV-OX-01 from the table (${lab.id})`);
+      await page.evaluate((id) => {
+        const { app } = window.__sim;
+        app.slices[id].paused = true;
+        app.slices[id].scrubbing = true;
+        app.handles[id].seek(0.05);
+      }, lab.id);
+      await page.waitForFunction((id) => {
+        const c = window.__sim.app.computed[id];
+        const x = c?.readout?.edges['HV-OX-01']?.x ?? 1;
+        return c && c.t > 0.02 && c.t < 0.12 && x < 1e-9;
+      }, lab.id, { timeout: 30000 });
+      console.log(`  scrub rewound ${lab.id} to before the first command`);
     }
   }
 } catch (e) {

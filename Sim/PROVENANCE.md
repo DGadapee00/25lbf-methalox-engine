@@ -76,22 +76,29 @@ volume, 480 psia manifold, 250 psia P_c) cite their section on the line.
 
 ## Component defaults (`data/components.json`)
 
-The GN₂ cold-flow stand's defaults, in datasheet units, loaded and converted to SI by
-`src/data/components.js`. **Every value has either a `source` or `placeholder: true` with its
-tracking issue, and the loader refuses anything else.**
+Stand defaults, in datasheet units, loaded and converted to SI by `src/data/components.js`.
+**Every value has either a `source` or `placeholder: true` with its tracking issue, and the
+loader refuses anything else.** A `sameAs` entry copies placeholder fields from another part.
+Sourced fields stay on the part they belong to. The fuel regulator's rated flow is 13.9 g/s.
 
 - **Sourced:**
-  - injector 4× ⌀1.4 mm, throat ⌀8.0 mm, chamber ≈45 cm³ (PROJECT_PLAN §2.2–2.3);
-  - regulator set point 480 psia at 38.8 g/s rated flow (PROJECT_PLAN §2.2–2.3);
-  - relief accumulation 10% (decision 2026-09-26);
+  - injector 4× ⌀1.4 mm and 4× ⌀1.0 mm, throat ⌀8.0 mm, chamber ≈45 cm³ (PROJECT_PLAN §2.2–2.3);
+  - oxidizer regulator set point 480 psia at 38.8 g/s, and fuel regulator set point 480 psia at
+    13.9 g/s (PROJECT_PLAN §2.2–2.3);
+  - relief accumulation 10% (decision 2026-09-26), restated on each relief;
   - standard atmosphere.
-- **Uncalibrated:** injector C_d 0.77 (V-9 hand check, one value for every injector circuit) until
+- **Uncalibrated:** injector C_d 0.77 (V-9 hand check, one value for both injector circuits) until
   Phase 5 step 2/3.
-- **Placeholders (issue #6):** 31 values, covering bottle volume and fill, valve C_v and timing,
-  regulator C_v / droop / τ, relief set / blowdown / τ_lift / sizing margin, manifold, line and
-  HP-line volumes, throat C_d, ambient temperature, and the transducer full scale, lag, ADC width
-  and noise. The stand's Setup panel lists them. The HP-line volume (20 cm³) is about 1 m of
-  1/4-inch tube; it is that run of tube, not a number chosen to help the solver.
+- **Placeholders (issue #6):** 85 values. The oxidizer circuit, throat C_d, ambient temperature,
+  and the shared transducer lag, ADC width and noise cover bottle volume and fill, valve C_v and
+  timing, regulator C_v / droop / τ, relief set / blowdown / τ_lift / sizing margin, manifold,
+  line and HP-line volumes, and transducer full scales. Fuel volumes, valves and transducers copy
+  those oxidizer placeholders. The purge circuit copies the same volumes and valve timings, and
+  carries its own stand-in regulator set point (100 psia), rated flow (1 g/s), relief set
+  (125 psi), and check valve (C_v 0.3, crack 5 psi, reseat 2 psi). A purge specification has not
+  been chosen. Those numbers let the network run, and the Setup panel lists them. The HP-line
+  volume (20 cm³) is about 1 m of 1/4-inch tube. The fuel and purge high-pressure runs use that
+  same tube-volume placeholder.
 
 The relief C_dA is not a free number: it is the build-time rule's minimum times the sizing
 margin, so it follows the regulator and set pressure.

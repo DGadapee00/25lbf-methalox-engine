@@ -360,7 +360,26 @@ noise with a fixed seed and writes `stand-daq-v1` (`Test_Stand/daq_format.md`, `
 
 The lag, the ADC width, the noise and each range are placeholders (issue #6), the same way a
 valve's open time is. They are not adjusted to change a step count. Sequence mode plays
-`GN2_STEP1` in `data/stands/gn2Coldflow.js`, the same table the stand self-test runs.
+`gn2-step1` from `Test_Stand/sequences/gn2-step1.json`, loaded by `data/sequences.js`. The GN₂
+cold-flow stand and the full stand both use that table. It commands the oxidizer circuit.
+Scrubbing to an earlier time rebuilds the run from t = 0 with the same commands and advances
+to the chosen time.
+
+## 6c. The full stand (M3)
+
+`data/stands/fullStand.js` (lab `full-stand`) is both propellant circuits and a purge leg.
+Every bottle is filled with nitrogen. The fuel circuit keeps the fuel injector holes and the
+fuel regulator's 13.9 g/s rated flow. This stand has no combustion model.
+
+Phase 5 step 1 is the `gn2-step1` run on the oxidizer circuit. Phase 5 step 3 opens both
+propellant paths at t = 0 and integrates for 4 s so the manifolds can settle. The 4 s figure
+is an integration length. `predictions/phase5.json` stores both results and labels them
+uncalibrated. Nitrogen through those orifices has its own mass flow. The GOX 38.8 g/s and
+GCH4 13.9 g/s figures are the design-point propellants.
+
+The purge regulator set point, rated flow, relief set and check-valve crack are placeholders
+on issue #6. The relief set sits above the stand-in lockup, so the relief stays shut while
+the purge regulator holds. A purge specification has not been written.
 
 ## 7. Known limits (M1–M3)
 
@@ -369,3 +388,4 @@ valve's open time is. They are not adjusted to change a step count. Sequence mod
 - No line friction element yet. Short runs are lumped C_dA, per the brief.
 - The valve φ(x) curve is linear unless a cited table is supplied (D-5).
 - V-10's published worked example is pending (see the self-test's PEND line).
+- The full stand flows nitrogen on every bottle. Combustion, ignition and thrust are M4.

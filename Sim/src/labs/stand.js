@@ -41,7 +41,7 @@ function downloadCsv(name, text) {
 function standLab(id) {
   const spec = STANDS[id]();
   const valves = spec.net.edges.filter((e) => e.type === 'valve').map((e) => e.id);
-  const reg = spec.net.edges.find((e) => e.type === 'regulator');
+  const regs = spec.net.edges.filter((e) => e.type === 'regulator');
   const sequence = spec.sequence;
   const channels = channelsOf(spec.sensors || []);
 
@@ -58,8 +58,15 @@ function standLab(id) {
     title: spec.title,
     status: 'uncalibrated',
     live: true,
-    hint: 'Operate: click a valve, starting with HV-OX-01 then SV-OX-01. Sequence plays the step-1 table. Download DAQ CSV writes the transducer log.',
-    defaultState: () => ({ mode: 'operate', scale: 1, paused: false, pSetPsia: reg ? reg.pSet / PSI : 0, fault: null }),
+    hint: spec.hint || 'Operate: click a valve, starting with HV-OX-01 then SV-OX-01. Sequence plays the step-1 table and the timeline scrubs it. Download DAQ CSV writes the transducer log.',
+    defaultState: () => ({
+      mode: 'operate',
+      scale: 1,
+      paused: false,
+      scrubbing: false,
+      pSetPsia: Object.fromEntries(regs.map((r) => [r.id, r.pSet / PSI])),
+      fault: Object.fromEntries(regs.map((r) => [r.id, null])),
+    }),
     controls: (s) => {
       const runButtons = `<button type="button" id="st-pause">${s.paused ? 'Resume' : 'Pause'}</button>
       <button type="button" id="st-reset">Reset</button>
@@ -70,19 +77,21 @@ function standLab(id) {
           .join('');
         return `
           <h3>Sequence</h3>
-          <p class="note">${escapeHTML(sequence?.id || '')} · ${sequence?.tEnd ?? ''} s · ${sequence?.rateHz ?? ''} Hz. The table is the run; valves are not clicked.</p>
+          <p class="note">${escapeHTML(sequence?.id || '')} · ${sequence?.tEnd ?? ''} s · ${sequence?.rateHz ?? ''} Hz. The table is the run. Scrub the timeline; valves are not clicked.</p>
           <table class="seq" id="seq-table">${rows}</table>
+          <label class="scrub">Timeline <input id="st-scrub" type="range" min="0" max="${sequence?.tEnd ?? 1}" step="0.01" value="0"> <span id="st-scrub-t">0 s</span></label>
           ${scaleSelect(s)}
           ${runButtons}
           ${provenanceList()}`;
       }
+      const regControls = regs.map((r) => `<label>${r.id} set point (psia) <input data-pset="${r.id}" type="number" min="50" max="900" step="5" value="${s.pSetPsia[r.id].toFixed(0)}"></label>
+        <label>${r.id} fault <select data-fault="${r.id}"><option value="">none</option><option value="open"${s.fault[r.id] === 'open' ? ' selected' : ''}>fails open</option><option value="closed"${s.fault[r.id] === 'closed' ? ' selected' : ''}>fails closed</option></select></label>`).join('');
       return `
         <h3>Operate</h3>
         <div class="valve-list">${valves.map((v) => `<button type="button" class="valve-btn" data-valve="${v}">${v}</button>`).join('')}</div>
         ${scaleSelect(s)}
         ${runButtons}
-        ${reg ? `<label>${reg.id} set point (psia) <input id="st-pset" type="number" min="50" max="900" step="5" value="${s.pSetPsia.toFixed(0)}"></label>
-        <label>${reg.id} fault <select id="st-fault"><option value="">none</option><option value="open"${s.fault === 'open' ? ' selected' : ''}>fails open</option><option value="closed"${s.fault === 'closed' ? ' selected' : ''}>fails closed</option></select></label>` : ''}
+        ${regControls}
         ${provenanceList()}`;
     },
     bind({ state: s, bump, root, handle: h }) {
@@ -95,16 +104,28 @@ function standLab(id) {
       });
       root.querySelector('#st-reset').addEventListener('click', () => h.reset());
       root.querySelector('#st-daq').addEventListener('click', () => h.download());
-      const ps = root.querySelector('#st-pset');
-      if (ps) ps.addEventListener('change', (e) => {
-        s.pSetPsia = Number(e.target.value);
-        h.client.command(reg.id, { pSet: s.pSetPsia * PSI });
-      });
-      const fl = root.querySelector('#st-fault');
-      if (fl) fl.addEventListener('input', (e) => {
-        s.fault = e.target.value || null;
-        h.client.command(reg.id, { fault: s.fault });
-      });
+      const scrub = root.querySelector('#st-scrub');
+      if (scrub) {
+        scrub.addEventListener('pointerdown', () => { s.scrubbing = true; });
+        scrub.addEventListener('input', () => {
+          s.scrubbing = true;
+          h.seek(Number(scrub.value));
+        });
+        scrub.addEventListener('change', () => {
+          s.scrubbing = false;
+          h.seek(Number(scrub.value));
+        });
+      }
+      root.querySelectorAll('[data-pset]').forEach((ps) => ps.addEventListener('change', () => {
+        const tag = ps.dataset.pset;
+        s.pSetPsia[tag] = Number(ps.value);
+        h.client.command(tag, { pSet: s.pSetPsia[tag] * PSI });
+      }));
+      root.querySelectorAll('[data-fault]').forEach((fl) => fl.addEventListener('input', () => {
+        const tag = fl.dataset.fault;
+        s.fault[tag] = fl.value || null;
+        h.client.command(tag, { fault: s.fault[tag] });
+      }));
     },
     setMode(s, h, mode) {
       s.mode = mode;
@@ -127,6 +148,7 @@ function standLab(id) {
           h.quiet = [];
         } else if (m.type === 'state') {
           h.live = m;
+          if (m.replace) h.history = [];
           h.history.push(...m.samples);
           const cut = m.t - HISTORY_S;
           while (h.history.length && h.history[0].t < cut) h.history.shift();
@@ -148,6 +170,10 @@ function standLab(id) {
         h.error = null;
         h.client.init(id, h.mode === 'sequence' ? sequence.steps : []);
       };
+      h.seek = (t) => {
+        if (h.mode !== 'sequence') return;
+        h.client.seek(t);
+      };
       h.download = () => {
         const noisy = h.history.length ? measureSeries(h.history.map((x) => ({ t: x.t, p: x.p })), channels, { seed: NOISE_SEED }) : [];
         const run = `${id}/${h.mode === 'sequence' ? sequence.id : 'operate'}`;
@@ -162,12 +188,12 @@ function standLab(id) {
     exit(ctx, h) {
       h.pid.setVisible(false);
     },
-    view: { x: -0.5, y: 0.1, z: 17.5 },
+    view: spec.view || { x: -0.5, y: 0.1, z: 17.5 },
     onPick(tag, h) {
       h.toggle(tag);
     },
     tick(dt, s, computed, h) {
-      if (!s.paused) h.client.advance(Math.min(0.1, dt) * s.scale);
+      if (!s.paused && !s.scrubbing) h.client.advance(Math.min(0.1, dt) * s.scale);
       if (h.fresh) {
         h.fresh = false;
         return true;
@@ -196,6 +222,10 @@ function standLab(id) {
           if (st.t <= c.t + 1e-9) current = i;
         });
         h.root.querySelectorAll('[data-step]').forEach((el) => el.classList.toggle('now', Number(el.dataset.step) === current));
+        const scrub = h.root.querySelector('#st-scrub');
+        if (scrub && !s.scrubbing && document.activeElement !== scrub) scrub.value = String(c.t);
+        const stamp = h.root.querySelector('#st-scrub-t');
+        if (stamp) stamp.textContent = `${c.t.toFixed(2)} s`;
       }
     },
     law: () => ['\\dfrac{dm_k}{dt} = \\sum_{\\text{in}} \\mdot - \\sum_{\\text{out}} \\mdot', '\\dfrac{dU_k}{dt} = \\sum_{\\text{in}} \\mdot\\,h - \\sum_{\\text{out}} \\mdot\\,h'],
@@ -205,11 +235,18 @@ function standLab(id) {
       if (!c.readout) return kv('status', 'starting the worker…');
       const r = c.readout;
       const rows = [kv('$t$', fmtTime(c.t)), kv('mode', s.mode)];
-      for (const n of spec.net.nodes) if (n.kind === 'volume') rows.push(kv(n.label || n.id, fmtP(r.nodes[n.id].p)));
-      if (c.measured) rows.push(kv('PT-OX-02 measured', fmtP(c.measured['PT-OX-02'])));
-      rows.push(kv('$\\mdot$ INJ-OX-01', fmtMdot(r.edges['INJ-OX-01'].mdot)));
-      rows.push(kv('INJ-OX-01 $p_0/p$', sig(r.edges['INJ-OX-01'].margin, 3)));
-      if (reg) rows.push(kv(`${reg.id} opening $z$`, sig(r.edges[reg.id].z, 3)));
+      for (const n of spec.net.nodes) if (n.kind === 'volume' && !n.id.endsWith('-hp')) rows.push(kv(n.label || n.id, fmtP(r.nodes[n.id].p)));
+      for (const sensor of spec.sensors || []) {
+        if (c.measured?.[sensor.tag] == null) continue;
+        if (!/-02$/.test(sensor.tag) && sensor.tag !== 'PT-CH-01') continue;
+        rows.push(kv(`${sensor.tag} measured`, fmtP(c.measured[sensor.tag])));
+      }
+      for (const e of spec.net.edges) {
+        if (!e.id.startsWith('INJ-')) continue;
+        rows.push(kv(`$\\mdot$ ${e.id}`, fmtMdot(r.edges[e.id].mdot)));
+        rows.push(kv(`${e.id} $p_0/p$`, sig(r.edges[e.id].margin, 3)));
+      }
+      for (const one of regs) rows.push(kv(`${one.id} opening $z$`, sig(r.edges[one.id].z, 3)));
       return rows.join('');
     },
     readout: (s, computed) => {
@@ -218,6 +255,20 @@ function standLab(id) {
       const r = c.readout;
       const fo = (c.failsOpen || [])[0];
       const foCell = fo && !fo.error ? `${fmtP(fo.peak)} <small class="caveat" title="${escapeHTML(fo.caveat)}">depends on ${escapeHTML(fo.dependsOn.join(', '))}</small>` : fo?.error ? escapeHTML(fo.error) : '…';
+      if (r.nodes['ox-manifold']) {
+        const fu = (c.failsOpen || []).find((x) => x.regulator === 'PCV-FU-01');
+        const fuCell = fu && !fu.error ? fmtP(fu.peak) : '…';
+        return cells([
+          ['ox manifold', fmtP(r.nodes['ox-manifold'].p)],
+          ['fuel manifold', fmtP(r.nodes['fu-manifold'].p)],
+          ['purge manifold', fmtP(r.nodes['n2-manifold'].p)],
+          ['$\\mdot$ ox', fmtMdot(r.edges['INJ-OX-01'].mdot)],
+          ['$\\mdot$ fuel', fmtMdot(r.edges['INJ-FU-01'].mdot)],
+          ['chamber', fmtP(r.nodes.chamber.p)],
+          ['peak ox manifold if PCV-OX-01 fails open', foCell],
+          ['peak fuel manifold if PCV-FU-01 fails open', fuCell],
+        ]);
+      }
       return cells([
         ['manifold', fmtP(r.nodes.manifold.p)],
         ['PT-OX-02', c.measured ? fmtP(c.measured['PT-OX-02']) : '…'],
@@ -230,12 +281,14 @@ function standLab(id) {
       const c = computed[id];
       const fo = (c.failsOpen || [])[0];
       return {
-        title: 'GN₂ cold flow (Phase 5 step 1)',
+        title: id === 'full-stand' ? 'Full stand, cold flow' : 'GN₂ cold flow (Phase 5 step 1)',
         body: [
           'Everything on this stand is uncalibrated and most component values are placeholders (listed in the Setup panel, issue #6). It shows how the stand behaves with those values, not what the hardware will do.',
           'The transducer tags are the lagged, quantized reading. Download DAQ CSV adds the placeholder noise with a fixed seed, in the format in Test_Stand/daq_format.md.',
-          s.mode === 'sequence' ? `Sequence ${sequence.id} opens the bottle isolation, then the main valve, then vents the manifold. The highlighted row is the last command at or before the current time.` : '',
-          fo && !fo.error ? `If PCV-OX-01 fails open with the main valve shut, the manifold peaks at ${fmtP(fo.peak)} before the relief catches it and settles at ${fmtP(fo.settled)}. Manifold hardware ratings and the MEOP must cover the peak. It depends on the relief lift time and the regulator poppet lag, both placeholders: a scale, not a design value.` : '',
+          id === 'full-stand' ? 'Both propellant bottles and the purge bottle are filled with nitrogen. The fuel circuit uses the fuel injector holes and the fuel regulator design flow. Combustion is a later milestone.' : '',
+          s.mode === 'sequence' ? `Sequence ${sequence.id} opens the oxidizer bottle isolation, then the oxidizer main valve, then vents the oxidizer manifold. The highlighted row is the last command at or before the current time. Drag the timeline to move through the table.` : '',
+          id === 'full-stand' ? 'Phase 5 step 1 and step 3 numbers from this model are in Sim/predictions/phase5.json. They carry the same uncalibrated label as this screen.' : '',
+          fo && !fo.error ? `If PCV-OX-01 fails open with the main valve shut, the ox manifold peaks at ${fmtP(fo.peak)} before the relief catches it and settles at ${fmtP(fo.settled)}. Manifold hardware ratings and the MEOP must cover the peak. It depends on the relief lift time and the regulator poppet lag, both placeholders: a scale, not a design value.` : '',
         ],
       };
     },
@@ -244,15 +297,22 @@ function standLab(id) {
       if (!hist.length) return null;
       const [u, f] = unitSystem() === 'us' ? ['psia', PSI] : ['MPa', 1e6];
       const ts = hist.map((x) => x.t);
-      const series = [
-        { xs: ts, ys: hist.map((x) => x.p.manifold / f), color: '#8fa88a', label: 'manifold' },
-        { xs: ts, ys: hist.map((x) => x.p.line / f), color: '#58c4dd', label: 'line' },
-        { xs: ts, ys: hist.map((x) => x.p.chamber / f), color: '#fc6255', label: 'chamber' },
-      ];
-      if (h.quiet?.length) series.push({ xs: h.quiet.map((x) => x.t), ys: h.quiet.map((x) => x.values['PT-OX-02'] / f), color: '#f4d345', label: 'PT-OX-02' });
+      const series = hist[0].p['ox-manifold']
+        ? [
+            { xs: ts, ys: hist.map((x) => x.p['ox-manifold'] / f), color: '#58c4dd', label: 'ox manifold' },
+            { xs: ts, ys: hist.map((x) => x.p['fu-manifold'] / f), color: '#f0ac5f', label: 'fuel manifold' },
+            { xs: ts, ys: hist.map((x) => x.p['n2-manifold'] / f), color: '#8fa88a', label: 'purge manifold' },
+            { xs: ts, ys: hist.map((x) => x.p.chamber / f), color: '#fc6255', label: 'chamber' },
+          ]
+        : [
+            { xs: ts, ys: hist.map((x) => x.p.manifold / f), color: '#8fa88a', label: 'manifold' },
+            { xs: ts, ys: hist.map((x) => x.p.line / f), color: '#58c4dd', label: 'line' },
+            { xs: ts, ys: hist.map((x) => x.p.chamber / f), color: '#fc6255', label: 'chamber' },
+          ];
+      if (h.quiet?.length && h.quiet[0].values['PT-OX-02'] != null) series.push({ xs: h.quiet.map((x) => x.t), ys: h.quiet.map((x) => x.values['PT-OX-02'] / f), color: '#f4d345', label: 'PT-OX-02' });
       return {
         series,
-        hlines: reg ? [{ y: (s.pSetPsia * PSI) / f, color: '#9a9591', label: 'p_set' }] : [],
+        hlines: regs.map((one, i) => ({ y: (s.pSetPsia[one.id] * PSI) / f, color: i === 0 ? '#9a9591' : '#c9c3bb', label: regs.length === 1 ? 'p_set' : one.id })),
         xLabel: 't (s)',
         yLabel: `p (${u})`,
         yMin: 0,
@@ -263,4 +323,5 @@ function standLab(id) {
   });
 }
 
+export { standLab };
 export default standLab('gn2-coldflow');
