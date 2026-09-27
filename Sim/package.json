@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "node scripts/check-headless.mjs && node src/physics/selftest.js && node scripts/shell-check.mjs",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:prod": "npm run build && node scripts/smoke.mjs --preview",
     "live": "node scripts/live.mjs"
   },
   "dependencies": {

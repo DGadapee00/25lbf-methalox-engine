@@ -12,7 +12,7 @@
   },
   "orifice": {
     "orifice.f.mdot": {
-      "value": 0.03938825102897513,
+      "value": 0.03888327345168057,
       "tol": 1e-09
     },
     "orifice.f.margin": {
@@ -23,13 +23,32 @@
       "equals": "amber"
     }
   },
+  "valve-timing": {
+    "valveTiming.halfT": {
+      "value": 0.035,
+      "tol": 1e-06
+    }
+  },
+  "injector": {
+    "injector.now.ox.mdot": {
+      "value": 0.03888327345168057,
+      "tol": 1e-09
+    },
+    "injector.now.ox.margin": {
+      "value": 1.92,
+      "tol": 1e-09
+    },
+    "injector.indicator": {
+      "equals": "amber"
+    }
+  },
   "regulator": {
     "regulator.r.final.nodes.manifold.p": {
-      "value": 3315444.164196636,
+      "value": 3317077.9186062315,
       "tol": 1e-06
     },
     "regulator.fo.peak": {
-      "value": 5140163.8819240965,
+      "value": 5141679.211604254,
       "tol": 0.0001
     }
   },
@@ -42,7 +61,7 @@
       "equals": "green"
     },
     "gn2-coldflow.failsOpen.0.peak": {
-      "value": 5125293.436208303,
+      "value": 5129044.05684668,
       "tol": 0.0001
     }
   }
