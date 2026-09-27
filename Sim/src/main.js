@@ -9,6 +9,9 @@ import { setUnitSystem, unitSystem } from './ui/format.js';
 import { drawPlot } from './ui/plot.js';
 import { renderPredict } from './ui/predict.js';
 import { rampColorCVD } from './scene/manim.js';
+import { inspectorHTML } from './ui/inspector.js';
+import { createGuide } from './ui/guide.js';
+import { createGlossary } from './ui/glossary.js';
 
 /**
  * App shell. Deliberately thin: FLUX's main.js is bound to exams, problems and notes, so this was
@@ -27,7 +30,13 @@ const clock = new THREE.Clock();
 
 const app = { id: null, lab: null, handles: {}, slices: {}, computed: {}, dirty: true, gen: 0, mode: 'operate' };
 // Read by scripts/smoke.mjs: which lab is mounted, what it computed, and its handle.
-window.__sim = { app, build: __BUILD__ };
+window.__sim = { app, build: __BUILD__, ctx };
+/** Screen position (CSS px) of a scene point: for the smoke test and the guide's highlights. */
+window.__sim.toScreen = (x, y) => {
+  const v = new THREE.Vector3(x, y, 0).project(camera);
+  const r = canvas.getBoundingClientRect();
+  return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+};
 
 function renderTabs() {
   const tabs = LABS.map(
@@ -76,6 +85,7 @@ function renderPanels() {
 
 async function openLab(id, { replace = false } = {}) {
   const gen = ++app.gen;
+  showInspector(null);
   const lab = await loadLab(id);
   if (!lab || gen !== app.gen) return;
   if (app.lab) app.lab.exit(ctx, app.handles[app.id], app.slices[app.id]);
@@ -154,18 +164,65 @@ $id('units-toggle').addEventListener('click', () => {
 
 // Click on the schematic: hand the P&ID element under the pointer to the lab.
 const ndc = new THREE.Vector2();
+const toNdc = (e) => {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+};
 canvas.addEventListener('pointerdown', (e) => {
   const { lab } = app;
   const h = app.handles[app.id];
-  if (!lab?.onPick || !h?.pid) return;
-  const r = canvas.getBoundingClientRect();
-  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  if (!h?.pid) return;
+  toNdc(e);
+  // A tap shows the inspector (there is no hover on a touch screen); a click on a valve also toggles it.
+  if (e.pointerType !== 'mouse') showInspector(h.pid.inspect(ndc, camera), e.clientX, e.clientY);
+  if (!lab?.onPick) return;
   const tag = h.pid.pick(ndc, camera);
   if (tag) {
     lab.onPick(tag, h);
     app.dirty = true;
   }
 });
+
+// Inspector (brief §5.2): hover any element for what it is, its live state and its law.
+const insEl = $id('inspector');
+const ins = { target: null, x: 0, y: 0, last: 0 };
+function placeInspector() {
+  const w = insEl.offsetWidth;
+  const hgt = insEl.offsetHeight;
+  const x = Math.min(window.innerWidth - w - 8, ins.x + 16);
+  const y = Math.min(window.innerHeight - hgt - 8, ins.y + 16);
+  insEl.style.left = `${Math.max(8, x)}px`;
+  insEl.style.top = `${Math.max(8, y)}px`;
+}
+function renderInspector() {
+  const h = app.handles[app.id];
+  if (!ins.target || !h?.pid) return;
+  insEl.innerHTML = inspectorHTML(ins.target, h.pid);
+  placeInspector();
+}
+function showInspector(target, x, y) {
+  ins.target = target;
+  ins.x = x;
+  ins.y = y;
+  insEl.hidden = !target;
+  canvas.style.cursor = target ? 'help' : '';
+  if (target) renderInspector();
+}
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const h = app.handles[app.id];
+  if (!h?.pid) return showInspector(null);
+  toNdc(e);
+  const t = h.pid.inspect(ndc, camera);
+  if (t?.kind !== ins.target?.kind || t?.id !== ins.target?.id) showInspector(t, e.clientX, e.clientY);
+  else if (t) {
+    ins.x = e.clientX;
+    ins.y = e.clientY;
+    placeInspector();
+  }
+  if (t && h.pid.pick(ndc, camera)) canvas.style.cursor = 'pointer';
+});
+canvas.addEventListener('pointerleave', () => showInspector(null));
 
 window.addEventListener('hashchange', () => {
   const { id } = parseHash();
@@ -193,10 +250,68 @@ function frame() {
       if (r) h.pid.update(r, dt);
     }
   }
+  guide.tick();
+  // Keep an open inspector live, a few times a second.
+  if (ins.target && performance.now() - ins.last > 150) {
+    ins.last = performance.now();
+    renderInspector();
+  }
   controls.update();
   renderer.render(scene, camera);
   labels.render(scene, camera);
 }
+
+// The guided path and the first-visit welcome.
+const guide = createGuide({ app, openLab, setMode, refresh: refreshControls, isStand, el: $id('guide') });
+window.__sim.guide = guide;
+$id('guide-btn').addEventListener('click', () => (guide.active ? guide.close() : guide.open(guide.index)));
+const glossary = createGlossary($id('glossary'));
+$id('glossary-btn').addEventListener('click', () => glossary.toggle());
+const WELCOME = 'standsim.welcome.v1';
+let seen = false;
+try {
+  seen = localStorage.getItem(WELCOME) === '1';
+} catch {
+  // storage blocked: show it
+}
+const welcome = $id('welcome');
+const dismiss = () => {
+  welcome.hidden = true;
+  try {
+    localStorage.setItem(WELCOME, '1');
+  } catch {
+    // not kept
+  }
+};
+// Automated browsers (the smoke test) skip it: it would sit over the controls they click.
+if (!seen && !navigator.webdriver) welcome.hidden = false;
+$id('welcome-start').addEventListener('click', () => {
+  dismiss();
+  guide.open(guide.hasProgress() ? guide.index : 0);
+});
+$id('welcome-explore').addEventListener('click', dismiss);
+welcome.addEventListener('click', (e) => e.target === welcome && dismiss());
+
+// Keys: Space pause/resume and R reset (stands), G the guide, ? the glossary, Esc closes overlays.
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest?.('input, select, textarea')) return;
+  const { lab } = app;
+  if (e.key === 'Escape') {
+    showInspector(null);
+    glossary.toggle(false);
+    if (!welcome.hidden) dismiss();
+    return;
+  }
+  if (e.key === '?') glossary.toggle();
+  else if (e.key === 'g' || e.key === 'G') (guide.active ? guide.close() : guide.open(guide.index));
+  else if ((e.key === ' ' || e.key === 'r' || e.key === 'R') && lab?.onKey) {
+    e.preventDefault();
+    lab.onKey(e.key === ' ' ? 'space' : 'reset', app.slices[app.id], app.handles[app.id]);
+    refreshControls();
+  } else return;
+  app.dirty = true;
+});
 
 openLab(parseHash().id, { replace: true });
 frame();

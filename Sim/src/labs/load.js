@@ -9,6 +9,7 @@ const loaders = {
   'full-stand': () => import('./fullStand.js'),
   'chamber-fill': () => import('./chamberFill.js'),
   'hot-fire': () => import('./hotFire.js'),
+  margin: () => import('./margin.js'),
 };
 
 const cache = new Map();

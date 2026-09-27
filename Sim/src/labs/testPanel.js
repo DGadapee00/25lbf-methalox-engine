@@ -15,7 +15,7 @@ import { compareToLog, validationSection } from '../physics/prediction.js';
 import { componentsMeta } from '../data/components.js';
 import { PSI } from '../physics/constants.js';
 
-const COLORS = { predicted: '#9a9591', measured: '#f4d345', fitted: '#58c4dd' };
+const COLORS = { predicted: '#9a9591', measured: '#c7b3dc', fitted: '#58c4dd' };
 
 function download(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));

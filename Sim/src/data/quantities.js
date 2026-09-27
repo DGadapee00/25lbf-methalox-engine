@@ -38,6 +38,7 @@ export const LAB_UNITS = {
   'full-stand': ['p', 'mdot', 'T', 'margin', 'CdA'],
   'chamber-fill': ['p', 'tau', 'mdot', 'm', 'E', 'cstar', 'F', 'margin'],
   'hot-fire': ['p', 'F', 'Isp', 'OF', 'mdot', 'T', 'E', 'cstar', 'margin'],
+  margin: ['margin', 'p', 'mdot', 'OF', 'F', 'cstar'],
 };
 
 const BASE = ['kg', 'm', 's', 'K'];

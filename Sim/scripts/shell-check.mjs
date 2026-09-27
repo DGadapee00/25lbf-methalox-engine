@@ -31,5 +31,22 @@ ok(fmtP(250 * PSI) === '1.724 MPa', 'SI pressure above 1 MPa is MPa');
 ok(fmtF(111.2) === '111 N', 'SI thrust is N');
 setUnitSystem('us');
 
+console.log('Guide');
+const { COURSE } = await import('../src/data/course.js');
+const { STANDS } = await import('../src/data/stands/index.js');
+const { GLOSSARY } = await import('../src/data/glossary.js');
+ok(COURSE.every((l) => LABS.some((x) => x.id === l.lab)), 'every lesson opens a lab that exists');
+ok(new Set(COURSE.map((l) => l.id)).size === COURSE.length, 'lesson ids are unique');
+const tagIssues = [];
+for (const l of COURSE) {
+  const stand = STANDS[l.lab]?.();
+  if (!stand) continue;
+  const tags = new Set([...stand.net.edges.map((e) => e.id), ...(stand.net.igniters || []).map((g) => g.id)]);
+  for (const st of l.steps) if (typeof st.next?.tag === 'string' && !tags.has(st.next.tag)) tagIssues.push(`${l.id}: ${st.next.tag}`);
+}
+ok(!tagIssues.length, `every highlighted tag is on its lesson's stand (${tagIssues.join(', ') || 'clean'})`);
+ok(COURSE.every((l) => l.steps.length && l.takeaway && l.goal), 'every lesson has a goal, steps and a takeaway');
+ok(GLOSSARY.every((g) => g.term && g.def) && new Set(GLOSSARY.map((g) => g.term)).size === GLOSSARY.length, 'glossary terms are unique and defined');
+
 console.log(`\nshell-check: ${failed ? `${failed} failed` : 'all passed'}`);
 if (failed) process.exit(1);

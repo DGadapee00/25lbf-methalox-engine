@@ -14,6 +14,7 @@ export const LABS = [
   { id: 'gn2-coldflow', kind: 'stand', title: 'GN₂ cold-flow stand', milestone: 'M3' },
   { id: 'full-stand', kind: 'stand', title: 'Full stand', milestone: 'M3' },
   { id: 'hot-fire', kind: 'stand', title: 'Hot fire', milestone: 'M4' },
+  { id: 'margin', kind: 'lab', title: 'Choke margin (S-3)', milestone: 'M6' },
 ];
 
 export const COMING = [];

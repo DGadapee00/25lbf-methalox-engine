@@ -156,6 +156,17 @@ try {
       }
     }
   }
+  // The guide and the inspector (learning layer): a lesson opens its lab and marks the next
+  // control in yellow; hovering the schematic shows an element's live card.
+  await page.evaluate(() => window.__sim.guide.open(6));
+  await page.waitForFunction(() => window.__sim.app.id === 'gn2-coldflow' && window.__sim.app.computed['gn2-coldflow']?.readout, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.getElementById('guide').hidden && document.querySelector('.guide-next') && window.__sim.app.handles['gn2-coldflow'].pid.nextTag === 'HV-OX-01', null, { timeout: 20000 });
+  console.log('  guide lesson 7 opened the GN₂ stand and marked HV-OX-01 in yellow');
+  const at = await page.evaluate(() => window.__sim.toScreen(-1.2, 0));
+  await page.mouse.move(at.x, at.y);
+  await page.waitForFunction(() => !document.getElementById('inspector').hidden && /manifold/.test(document.getElementById('inspector').textContent), null, { timeout: 10000 });
+  console.log('  hovering the manifold opened the inspector');
+  await page.evaluate(() => window.__sim.guide.close());
 } catch (e) {
   errors.push(String(e));
 } finally {

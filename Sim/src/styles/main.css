@@ -121,3 +121,65 @@ button.stand { border-style: dashed; }
 .setup .warn { color: var(--warn); }
 .setup .bad { color: var(--bad); }
 .setup code { font-size: 11px; }
+
+/* Inspector: hover or tap a P&ID element */
+.inspector { position: fixed; z-index: 5; width: 300px; pointer-events: none; font-size: 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+.inspector[hidden] { display: none; }
+.ins-title { font: 600 13px var(--mono); margin-bottom: 4px; }
+.ins-what { color: var(--muted); margin: 0 0 6px; }
+.ins-row { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); }
+.ins-row span:first-child { color: var(--muted); font-family: var(--font); }
+.ins-row span:last-child { text-align: right; }
+.ins-law { margin-top: 6px; font-size: 13px; }
+.ins-prov { margin: 6px 0 0; color: var(--warn); font-size: 11px; }
+.inspector .ok { color: var(--ok); } .inspector .warn { color: var(--warn); } .inspector .bad, .inspector .hot { color: var(--bad); }
+@media (max-width: 720px) { .inspector { position: fixed; width: auto; left: 8px !important; right: 8px; } }
+
+/* Guide: the guided path, top of the right panel */
+.guide { border: 1px solid var(--next); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; background: rgba(244, 211, 69, 0.05); }
+.guide[hidden] { display: none; }
+.guide-head { display: flex; justify-content: space-between; align-items: center; }
+.guide-count { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--next); }
+.guide-x { background: none; border: none; color: var(--muted); font-size: 16px; padding: 0 4px; }
+.guide-title { font-weight: 600; font-size: 15px; margin: 2px 0; }
+.guide-goal { color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+.guide-steps { margin: 4px 0; padding-left: 20px; font-size: 13px; }
+.guide-steps li { margin: 4px 0; color: var(--muted); }
+.guide-steps li.now { color: var(--text); }
+.guide-steps li.done { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(154,149,145,0.5); }
+.guide-steps li.done::marker { content: '✓  '; color: var(--ok); }
+.guide-act { display: block; margin-top: 4px; font-size: 12px; }
+.guide-take { font-size: 12px; margin: 6px 0; color: var(--text); }
+.guide-nav { display: flex; gap: 4px; align-items: center; margin-top: 6px; }
+.guide-nav select { flex: 1; min-width: 0; font: inherit; font-size: 12px; color: var(--text); background: #1c1f24; border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px; }
+.guide-go { width: 100%; margin: 4px 0; }
+/* The one control to press next (brief §5.3): yellow, and nothing else is. */
+.guide-next { outline: 2px solid var(--next) !important; outline-offset: 2px; box-shadow: 0 0 12px rgba(244, 211, 69, 0.45); }
+button.guide-next { border-color: var(--next); color: var(--next); }
+
+/* Welcome */
+.welcome { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); padding: 16px; }
+.welcome[hidden] { display: none; }
+.welcome-card { max-width: 560px; padding: 18px 20px; font-size: 14px; background: rgba(20, 22, 26, 0.97); }
+.welcome-card h2 { margin: 0 0 8px; font-size: 18px; }
+.welcome-card p, .welcome-card li { color: var(--muted); }
+.welcome-card b { color: var(--text); }
+.welcome-card .warn { color: var(--warn); }
+.welcome-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.setup .purpose { color: var(--warn); }
+
+/* Glossary drawer */
+.glossary { top: 150px; right: 344px; width: 380px; max-height: calc(100vh - 290px); overflow: auto; z-index: 4; }
+.glossary[hidden] { display: none; }
+.gl-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.gl-search { width: 100%; font: inherit; color: var(--text); background: #1c1f24; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.gl-list { margin: 8px 0 0; }
+.gl-item { margin: 0 0 10px; }
+.gl-item[hidden] { display: none; }
+.gl-item dt { font-weight: 600; font-size: 13px; }
+.gl-item dd { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.gl-formula { margin: 4px 0; color: var(--text); font-size: 13px; }
+.gl-where { font-size: 11px; color: var(--muted); font-style: italic; }
+@media (max-width: 720px) { .glossary { position: fixed; inset: 8px; width: auto; max-height: none; } }
+.welcome-keys { font-size: 12px; }
+kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: var(--text); }

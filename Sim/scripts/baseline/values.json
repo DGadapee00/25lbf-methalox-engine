@@ -121,5 +121,18 @@
       "value": 5114953.920729605,
       "tol": 0.0001
     }
+  },
+  "margin": {
+    "marginLab.now.Pc": {
+      "value": 1802164.6077055614,
+      "tol": 1e-06
+    },
+    "marginLab.now.marginOx": {
+      "value": 1.819488121489874,
+      "tol": 1e-06
+    },
+    "marginLab.choke.INJ-OX-01": {
+      "equals": "red"
+    }
   }
 }

@@ -8,6 +8,8 @@
  *   { type: 'synthetic', id, stand, table, overrides, seed }       → { type: 'synthetic', id, csv }
  *   { type: 'fit', id, stand, table, rows, params, tags, meta }   → { type: 'progress', id, iter, ssr }…
  *                                                                    { type: 'fit', id, fit, record }
+ *   { type: 'sweep', id, points: [inputs] }                        → { type: 'sweep', id, rows }
+ *     steady operating points of the chamber-fill network (physics/sweep.js), for the choke-margin lab
  * Out on failure: { type: 'error', id, message }.
  */
 import { STANDS } from '../data/stands/index.js';
@@ -15,10 +17,15 @@ import { expandSequence } from '../data/sequences.js';
 import { registerPrediction } from '../physics/prediction.js';
 import { predictReadings, fitAreas } from '../physics/fit.js';
 import { daqCsv } from '../physics/daq.js';
+import { steadyPoint } from '../physics/sweep.js';
 
 self.onmessage = (ev) => {
   const m = ev.data;
   try {
+    if (m.type === 'sweep') {
+      self.postMessage({ type: 'sweep', id: m.id, rows: m.points.map((x) => steadyPoint(x)) });
+      return;
+    }
     const stand = STANDS[m.stand]();
     const seq = expandSequence(m.table);
     if (m.type === 'predict') {

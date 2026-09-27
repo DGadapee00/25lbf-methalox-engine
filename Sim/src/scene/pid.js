@@ -81,6 +81,7 @@ export class PidView {
     this.sensors = [];
     this.flames = [];
     this.igniters = [];
+    this.hits = [];
     this._c = new THREE.Color();
     this.raycaster = new THREE.Raycaster();
     this.dotGeo = new THREE.CircleGeometry(0.06, 12);
@@ -101,6 +102,9 @@ export class PidView {
     this.sensors = [];
     this.flames = [];
     this.igniters = [];
+    this.hits = [];
+    this.nextRing = null;
+    this.nextTag = null;
   }
 
   /**
@@ -110,6 +114,17 @@ export class PidView {
   build(stand, { circuitColor = Q.ox } = {}) {
     this.clear();
     const { net, layout } = stand;
+    this.net = net;
+    this.gas = stand.gas || null;
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    // Inspector targets: an invisible disc or plate over every element (inspect(ndc) → { kind, id }).
+    const addHit = (geo, x, y, info) => {
+      const m = new THREE.Mesh(geo, hitMat);
+      m.position.set(x, y, 0.045);
+      m.userData.inspect = info;
+      this.hits.push(m);
+      this.group.add(m);
+    };
     const nodeById = Object.fromEntries(net.nodes.map((n) => [n.id, n]));
     // A node with a layout position is drawn there (an ambient one as a fixed-pressure reservoir);
     // an ambient node without one is drawn as a vent at the end of each edge that reaches it.
@@ -166,6 +181,8 @@ export class PidView {
           ? add(label(n.label || n.id, x + 0.16, y - 0.16, 'pid-node', [0, 0]))
           : add(label(n.label || n.id, x, y - ({ bottle: 1.55, chamber: 0.85, reservoir: 0.8 }[kind] ?? 0.35), 'pid-node'));
       this.nodes.push({ id: n.id, fill, name, kind });
+      const size = { bottle: [1.0, 2.4], chamber: [1.8, 1.1], reservoir: [1.0, 1.0] }[kind];
+      addHit(size ? new THREE.PlaneGeometry(size[0], size[1]) : new THREE.CircleGeometry(0.3, 16), x, y, { kind: 'node', id: n.id });
     }
 
     // Edges: two half pipes, a symbol, flow dots, a tag, and for orifices a choke indicator.
@@ -236,6 +253,7 @@ export class PidView {
         this.picks.push(add(hit));
       }
       this.edges.push(rec);
+      addHit(new THREE.CircleGeometry(e.type === 'orifice' ? 0.34 : S * 1.5, 16), Mid[0], Mid[1], { kind: 'edge', id: e.id });
     }
 
     // Igniters: a spark in a circle, wired to its chamber, pickable like a valve.
@@ -253,6 +271,7 @@ export class PidView {
       hit.userData.tag = g.id;
       this.picks.push(add(hit));
       this.igniters.push({ id: g.id, chamber: g.chamber, ring, bolt, tag });
+      addHit(new THREE.CircleGeometry(0.5, 16), x, y, { kind: 'igniter', id: g.id });
     }
 
     for (const s of stand.sensors || []) {
@@ -262,6 +281,7 @@ export class PidView {
       add(fatLine(Array.from({ length: 25 }, (_, k) => [x + ox + 0.28 * Math.cos((2 * Math.PI * k) / 24), y + oy + 0.28 * Math.sin((2 * Math.PI * k) / 24), 0.02]).flat(), { color: M.grey, width: 1.5 }));
       const lab = add(label(`<b>${s.tag}</b><span></span>`, x + ox, y + oy + 0.55, 'pid-sensor'));
       this.sensors.push({ ...s, lab });
+      addHit(new THREE.CircleGeometry(0.34, 16), x + ox, y + oy, { kind: 'sensor', id: s.tag });
     }
     this.pAmb = Math.min(...net.nodes.map((n) => n.p), 101325);
     this.pMax = Math.max(...net.nodes.map((n) => n.p));
@@ -280,6 +300,11 @@ export class PidView {
    */
   update(readout, dt, fmtP, fmtF) {
     if (!readout) return;
+    this.last = readout;
+    if (this.nextRing?.visible) {
+      this.pulse = ((this.pulse || 0) + (dt || 0) * 5) % (2 * Math.PI);
+      this.nextRing.scale.setScalar(1 + 0.12 * Math.sin(this.pulse));
+    }
     if (fmtP) this.fmtP = fmtP;
     if (fmtF) this.fmtF = fmtF;
     const pOf = (id) => readout.nodes[id]?.p ?? this.pAmb;
@@ -343,6 +368,40 @@ export class PidView {
     this.raycaster.setFromCamera(ndc, camera);
     const hit = this.raycaster.intersectObjects(this.picks, false)[0];
     return hit ? hit.object.userData.tag : null;
+  }
+
+  /**
+   * The one control to press next (brief §5.3: yellow is reserved for it): a pulsing yellow ring on
+   * the element with this tag or node id, or none for null. Used by the guide.
+   */
+  setNext(tag) {
+    if (tag === this.nextTag) return;
+    this.nextTag = tag;
+    if (!this.nextRing) {
+      this.nextRing = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.56, 40), new THREE.MeshBasicMaterial({ color: Q.next, transparent: true, opacity: 0.95, depthWrite: false }));
+      this.nextRing.visible = false;
+      this.group.add(this.nextRing);
+    }
+    const at = this.positionOf(tag);
+    this.nextRing.visible = !!at;
+    if (at) this.nextRing.position.set(at[0], at[1], 0.08);
+  }
+
+  /** Scene position of an edge's symbol, an igniter, a sensor or a node, by id. */
+  positionOf(id) {
+    if (!id) return null;
+    const e = this.edges.find((r) => r.id === id);
+    if (e) return [(e.A[0] + e.B[0]) / 2, (e.A[1] + e.B[1]) / 2];
+    const h = this.hits.find((m) => m.userData.inspect.id === id);
+    return h ? [h.position.x, h.position.y] : null;
+  }
+
+  /** What is under the pointer, for the inspector: { kind: 'node' | 'edge' | 'igniter' | 'sensor', id } or null. */
+  inspect(ndc, camera) {
+    if (!this.group.visible) return null;
+    this.raycaster.setFromCamera(ndc, camera);
+    const hit = this.raycaster.intersectObjects(this.hits, false)[0];
+    return hit ? hit.object.userData.inspect : null;
   }
 
   /** Choke state per orifice, for readouts and the smoke test. */

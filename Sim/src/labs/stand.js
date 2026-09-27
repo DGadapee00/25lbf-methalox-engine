@@ -8,7 +8,7 @@ import { STANDS } from '../data/stands/index.js';
 import { provenance } from '../data/components.js';
 import { measureSeries } from '../physics/sensors.js';
 import { daqCsv } from '../physics/daq.js';
-import { PSI } from '../physics/constants.js';
+import { PSI, LBF } from '../physics/constants.js';
 import { expandSequence, sequenceSource } from '../data/sequences.js';
 import { faultTargets, faultCommand, reportMarkdown, renderReport } from '../ui/faults.js';
 import { createTestPanel } from './testPanel.js';
@@ -76,8 +76,10 @@ function standLab(id) {
       .map((r) => `<li><b>${escapeHTML(r.part)}.${escapeHTML(r.key)}</b> = ${r.value} ${escapeHTML(r.unit)} <span class="${r.kind}">${r.kind}${r.issue ? ` #${r.issue}` : ''}</span>${r.note ? ` — ${escapeHTML(r.note)}` : ''}</li>`)
       .join('')}</ul></details>`;
 
+  const PLOTS = hot ? { pressures: 'pressures', flows: 'mass flows', thrust: 'thrust' } : { pressures: 'pressures', flows: 'mass flows' };
   const scaleSelect = (s) =>
-    `<label>Time scale <select id="st-scale">${SCALES.map((k) => `<option value="${k}"${k === s.scale ? ' selected' : ''}>${k}×</option>`).join('')}</select></label>`;
+    `<label>Time scale <select id="st-scale">${SCALES.map((k) => `<option value="${k}"${k === s.scale ? ' selected' : ''}>${k}×</option>`).join('')}</select></label>
+    <label>Plot <select id="st-plot">${Object.entries(PLOTS).map(([k, v]) => `<option value="${k}"${k === (s.plotView || 'pressures') ? ' selected' : ''}>${v}</option>`).join('')}</select></label>`;
 
   return defineLab({
     id,
@@ -135,6 +137,7 @@ function standLab(id) {
         return `
           <h3>Sequence</h3>
           <p class="note">${escapeHTML(seq.id)} · ${seq.tEnd} s · ${seq.rateHz} Hz · ${escapeHTML(s.tableName)}. The table is the run. Scrub the timeline; valves are not clicked.</p>
+          ${seq.purpose ? `<p class="note purpose">${escapeHTML(seq.purpose)}</p>` : ''}
           <table class="seq" id="seq-table">${rows}</table>
           <label class="scrub">Timeline <input id="st-scrub" type="range" min="0" max="${seq.tEnd}" step="0.01" value="0"> <span id="st-scrub-t">0 s</span></label>
           ${scaleSelect(s)}
@@ -177,6 +180,7 @@ function standLab(id) {
       }
       root.querySelectorAll('.valve-btn').forEach((b) => b.addEventListener('click', () => h.toggle(b.dataset.valve)));
       root.querySelector('#st-scale')?.addEventListener('input', (e) => ((s.scale = Number(e.target.value)), bump()));
+      root.querySelector('#st-plot')?.addEventListener('input', (e) => ((s.plotView = e.target.value), bump()));
       root.querySelector('#st-pause').addEventListener('click', (e) => {
         s.paused = !s.paused;
         e.target.textContent = s.paused ? 'Resume' : 'Pause';
@@ -280,6 +284,7 @@ function standLab(id) {
       root.querySelector('#st-report')?.addEventListener('click', () => {
         const rep = h.live?.report;
         if (!rep) return;
+        h.reports = (h.reports || 0) + 1;
         const text = reportMarkdown({ stand: id, table: s.tableName, rep, t: h.live.t });
         downloadCsv(`${id}-${rep.sequence}-report.md`, text, 'text/markdown');
       });
@@ -349,6 +354,7 @@ function standLab(id) {
         h.client.seek(t);
       };
       h.download = () => {
+        h.downloads = (h.downloads || 0) + 1;
         const noisy = h.history.length ? measureSeries(h.history.map((x) => ({ t: x.t, p: x.p, F: x.F })), channels, { seed: NOISE_SEED }) : [];
         const seq = h.mode === 'sequence' ? tableOf(h.state) : null;
         const run = `${id}/${seq ? seq.id : 'operate'}`;
@@ -367,6 +373,10 @@ function standLab(id) {
     view: spec.view || { x: -0.5, y: 0.1, z: 17.5 },
     onPick(tag, h) {
       h.toggle(tag);
+    },
+    onKey(key, s, h) {
+      if (key === 'space') s.paused = !s.paused;
+      if (key === 'reset' && s.mode !== 'test') h.reset();
     },
     tick(dt, s, computed, h) {
       if (!s.paused && !s.scrubbing && s.mode !== 'test') h.client.advance(Math.min(0.1, dt) * s.scale);
@@ -529,6 +539,18 @@ function standLab(id) {
       if (!hist.length) return null;
       const [u, f] = unitSystem() === 'us' ? ['psia', PSI] : ['MPa', 1e6];
       const ts = hist.map((x) => x.t);
+      const axis = { xLabel: 't (s)', yMin: 0, xFmt: (v) => sig(v, 3), yFmt: (v) => sig(v, 3) };
+      if (s.plotView === 'flows') {
+        const ids = spec.net.edges.filter((e) => /^(INJ-|THROAT)/.test(e.id) || e.id === 'CKV-N2-01').map((e) => e.id);
+        const col = { 'INJ-OX-01': '#58c4dd', 'INJ-FU-01': '#f0ac5f', 'CKV-N2-01': '#8fa88a', 'THROAT-01': '#fc6255' };
+        return { ...axis, series: ids.map((e) => ({ xs: ts, ys: hist.map((x) => (x.m[e] ?? 0) * 1e3), color: col[e] || '#ece6e2', label: e })), yLabel: 'ṁ (g/s)' };
+      }
+      if (s.plotView === 'thrust' && hot) {
+        const [fu, ff] = unitSystem() === 'us' ? ['lbf', LBF] : ['N', 1];
+        const series = [{ xs: ts, ys: hist.map((x) => (x.F?.chamber ?? 0) / ff), color: '#fc6255', label: 'thrust (true)' }];
+        if (h.quiet?.length && h.quiet[0].values['LC-CH-01'] != null) series.push({ xs: h.quiet.map((x) => x.t), ys: h.quiet.map((x) => x.values['LC-CH-01'] / ff), color: '#c7b3dc', label: 'LC-CH-01' });
+        return { ...axis, series, yLabel: `F (${fu})` };
+      }
       const series = hist[0].p['ox-manifold']
         ? [
             { xs: ts, ys: hist.map((x) => x.p['ox-manifold'] / f), color: '#58c4dd', label: 'ox manifold' },
@@ -541,7 +563,7 @@ function standLab(id) {
             { xs: ts, ys: hist.map((x) => x.p.line / f), color: '#58c4dd', label: 'line' },
             { xs: ts, ys: hist.map((x) => x.p.chamber / f), color: '#fc6255', label: 'chamber' },
           ];
-      if (h.quiet?.length && h.quiet[0].values['PT-OX-02'] != null) series.push({ xs: h.quiet.map((x) => x.t), ys: h.quiet.map((x) => x.values['PT-OX-02'] / f), color: '#f4d345', label: 'PT-OX-02' });
+      if (h.quiet?.length && h.quiet[0].values['PT-OX-02'] != null) series.push({ xs: h.quiet.map((x) => x.t), ys: h.quiet.map((x) => x.values['PT-OX-02'] / f), color: '#c7b3dc', label: 'PT-OX-02' });
       return {
         series,
         hlines: regs.map((one, i) => ({ y: (s.pSetPsia[one.id] * PSI) / f, color: i === 0 ? '#9a9591' : '#c9c3bb', label: regs.length === 1 ? 'p_set' : one.id })),

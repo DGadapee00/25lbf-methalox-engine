@@ -41,3 +41,9 @@ export function renderPredict(el, cards, onPick) {
 export function resetPredict() {
   picked.clear();
 }
+
+/** Has a card whose id starts with `prefix` been answered (this session)? For the guide. */
+export function answered(prefix) {
+  for (const k of picked.keys()) if (k.startsWith(prefix)) return true;
+  return false;
+}
