@@ -13,6 +13,7 @@
  * Starts safe: bottle isolation shut, everything downstream at ambient.
  */
 import { components, injectorCdA } from '../components.js';
+import { pressureChannel } from '../sensors.js';
 import { reliefCdAForFailOpen } from '../../physics/network.js';
 import { stateFromPTY, nasa7Gas, massFractions } from '../../physics/gas.js';
 import { cvToCdA } from '../../physics/elements/orifice.js';
@@ -20,6 +21,24 @@ import { cvToCdA } from '../../physics/elements/orifice.js';
 const circle = (d) => (Math.PI / 4) * d * d;
 
 export const SPECIES = ['O2', 'CH4', 'N2'];
+
+/**
+ * Phase 5 step 1 dry run on this circuit. Sequence mode and the stand self-test both play this
+ * table; neither keeps a private copy.
+ *
+ * rateHz is the DAQ sample rate (Test_Stand/daq_format.md) and the live worker's sample grid.
+ */
+export const GN2_STEP1 = {
+  id: 'gn2-step1',
+  tEnd: 7,
+  rateHz: 50,
+  steps: [
+    { t: 0.1, id: 'HV-OX-01', cmd: 'open' },
+    { t: 2.5, id: 'SV-OX-01', cmd: 'open' },
+    { t: 5.0, id: 'SV-OX-01', cmd: 'close' },
+    { t: 5.5, id: 'SV-OX-02', cmd: 'open' },
+  ],
+};
 
 export function gn2Coldflow(c = components()) {
   const gas = nasa7Gas(SPECIES);
@@ -84,11 +103,12 @@ export function gn2Coldflow(c = components()) {
       nodes: { bottle: [-5.8, 0], hp: [-4.0, 0], manifold: [-1.2, 0], line: [1.5, 0], chamber: [3.7, 0] },
       vents: { 'PSV-OX-01': [-1.2, 2.3], 'SV-OX-02': [-1.2, -2.3], 'THROAT-01': [5.6, 0] },
     },
+    sequence: GN2_STEP1,
     sensors: [
-      { tag: 'PT-OX-01', node: 'bottle', offset: [0.9, 1.7] },
-      { tag: 'PT-OX-02', node: 'manifold', offset: [0.9, 1.2] },
-      { tag: 'PT-OX-03', node: 'line', offset: [0, 1.2] },
-      { tag: 'PT-CH-01', node: 'chamber', offset: [0, 1.4] },
+      pressureChannel('PT-OX-01', 'bottle', c, { offset: [0.9, 1.7] }),
+      pressureChannel('PT-OX-02', 'manifold', c, { offset: [0.9, 1.2] }),
+      pressureChannel('PT-OX-03', 'line', c, { offset: [0, 1.2] }),
+      pressureChannel('PT-CH-01', 'chamber', c, { offset: [0, 1.4] }),
     ],
   };
 }

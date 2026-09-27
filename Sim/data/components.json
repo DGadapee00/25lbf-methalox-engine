@@ -252,6 +252,65 @@
         "issue": 6,
         "note": "ideal; replace from cold-flow data"
       }
+    },
+    "pt": {
+      "tau": {
+        "value": 1,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6,
+        "note": "first-order lag of a small diaphragm transducer; a hardware time, not a solver knob"
+      },
+      "bits": {
+        "value": 16,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "ADC width across the channel's full-scale range"
+      },
+      "noise": {
+        "value": 0.05,
+        "unit": "psi",
+        "placeholder": true,
+        "issue": 6,
+        "note": "1-sigma of the reading; applied only when a DAQ log is given a noise seed"
+      }
+    },
+    "PT-OX-01": {
+      "range": {
+        "value": 3000,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "bottle transducer full scale; covers a 2000–2400 psi fill with headroom"
+      }
+    },
+    "PT-OX-02": {
+      "range": {
+        "value": 1000,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "manifold full scale; covers the 480 psia set point and the 600 psi relief"
+      }
+    },
+    "PT-OX-03": {
+      "range": {
+        "value": 1000,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "line full scale, same class as the manifold transducer"
+      }
+    },
+    "PT-CH-01": {
+      "range": {
+        "value": 500,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "chamber full scale; covers the 250 psia design point with margin"
+      }
     }
   }
 }

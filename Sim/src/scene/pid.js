@@ -261,7 +261,10 @@ export class PidView {
         d.position.set(r.A[0] + r.dir[0] * s, r.A[1] + r.dir[1] * s, 0.06);
       });
     }
-    for (const s of this.sensors) setText(s.lab, `<b>${s.tag}</b><span>${this.fmtP ? this.fmtP(pOf(s.node)) : ''}</span>`);
+    for (const s of this.sensors) {
+      const p = readout.measured?.[s.tag] ?? pOf(s.node);
+      setText(s.lab, `<b>${s.tag}</b><span>${this.fmtP ? this.fmtP(p) : ''}</span>`);
+    }
   }
 
   /** Tag of the valve under normalized device coordinates (THREE.Vector2), or null. */

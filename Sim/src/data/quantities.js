@@ -19,6 +19,7 @@ export const QUANTITIES = {
   CdA: { sym: 'C_dA', name: 'Effective flow area', unit: 'm^2', display: 'sig', from: 'C_dA = C_d\\,A_{\\text{geom}}' },
   margin: { sym: 'p_0/p', name: 'Choke margin (pressure ratio)', unit: '1', display: 'sig', from: '\\text{choked when } p_0/p \\ge \\left(\\tfrac{\\gamma+1}{2}\\right)^{\\gamma/(\\gamma-1)}' },
   tau: { sym: '\\tau', name: 'Time constant', unit: 's', display: 'fmtTime', from: '\\tau = \\dfrac{V}{C_dA\\,\\Lambda\\sqrt{\\gamma R T}}' },
+  x: { sym: 'x', name: 'Valve stem position', unit: '1', display: 'sig', from: '0 shut, 1 open' },
 };
 
 /** Which quantities each lab puts on screen, most important first. */
@@ -26,6 +27,8 @@ export const LAB_UNITS = {
   blowdown: ['p', 'T', 'mdot', 'm', 'V', 'CdA', 'tau'],
   orifice: ['mdot', 'p', 'T', 'CdA', 'margin'],
   regulator: ['p', 'mdot', 'tau', 'V'],
+  'valve-timing': ['p', 'mdot', 'tau', 'x'],
+  injector: ['mdot', 'p', 'CdA', 'margin'],
   'gn2-coldflow': ['p', 'mdot', 'T', 'margin', 'CdA'],
 };
 

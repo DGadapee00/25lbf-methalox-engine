@@ -4,7 +4,8 @@
  * any commands at the current sim time, and posts back the latest readout plus the samples taken
  * since the last post (for plots).
  *
- * Messages in:  { type: 'init', stand }       build the stand and start a run at t = 0
+ * Messages in:  { type: 'init', stand, schedule? }  build the stand and start a run at t = 0.
+ *                 schedule is [{ t, id, cmd }] for Sequence mode; Operate omits it.
  *               { type: 'cmd', id, cmd }       command now (valve 'open'/'close', { pSet }, { fault })
  *               { type: 'advance', dt }        advance dt seconds of sim time
  * Messages out: { type: 'ready', t, readout, failsOpen }
@@ -32,7 +33,9 @@ self.onmessage = (ev) => {
   try {
     if (msg.type === 'init') {
       stand = STANDS[msg.stand]();
-      run = createRun(stand.net, { gas: stand.gas, sampleDt: 0.02, horizon: 1, maxSamples: 3000 });
+      const rateHz = stand.sequence?.rateHz || 50;
+      run = createRun(stand.net, { gas: stand.gas, sampleDt: 1 / rateHz, horizon: 1, maxSamples: 8000 });
+      if (msg.schedule?.length) run.schedule(msg.schedule);
       run.advance(0);
       lastT = -Infinity;
       let failsOpen = [];

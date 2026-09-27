@@ -8,12 +8,12 @@ export const LABS = [
   { id: 'blowdown', kind: 'lab', title: 'Blowdown', milestone: 'M2' },
   { id: 'orifice', kind: 'lab', title: 'Orifice', milestone: 'M2' },
   { id: 'regulator', kind: 'lab', title: 'Regulator', milestone: 'M2' },
-  { id: 'gn2-coldflow', kind: 'stand', title: 'GN₂ cold-flow stand', milestone: 'M2' },
+  { id: 'valve-timing', kind: 'lab', title: 'Valve timing', milestone: 'M3' },
+  { id: 'injector', kind: 'lab', title: 'Injector', milestone: 'M3' },
+  { id: 'gn2-coldflow', kind: 'stand', title: 'GN₂ cold-flow stand', milestone: 'M3' },
 ];
 
 export const COMING = [
-  { title: 'Valve timing', milestone: 'M3' },
-  { title: 'Injector', milestone: 'M3' },
   { title: 'Full stand', milestone: 'M3' },
   { title: 'Chamber fill', milestone: 'M4' },
 ];

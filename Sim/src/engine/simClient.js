@@ -12,9 +12,9 @@ export function createSimClient(onMessage) {
   };
   worker.onerror = (e) => onMessage({ type: 'error', message: e.message || 'worker error' });
   return {
-    init(stand) {
+    init(stand, schedule) {
       busy = true;
-      worker.postMessage({ type: 'init', stand });
+      worker.postMessage({ type: 'init', stand, schedule: schedule || [] });
     },
     command(id, cmd) {
       worker.postMessage({ type: 'cmd', id, cmd });

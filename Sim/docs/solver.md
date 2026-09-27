@@ -351,7 +351,18 @@ stand (233 000 Dormand–Prince steps for 7 s), and M2 raised it to 20 cm³. Rai
 speed breaks the rule in §2a; the value is kept because it is plausible, not because it is fast.
 With Ros3, a small as-built volume costs little: stiffness no longer sets the step.
 
-## 7. Known limits (M1–M2)
+## 6b. Transducers are not states (M3)
+
+A pressure transducer does not push on the gas, so it is not in the ODE. `sensors.js` applies, in
+order, a first-order lag, optional gaussian noise, and uniform quantization over the full-scale
+range. The P&ID tag shows the quiet reading (lag and quantization). Download DAQ CSV adds the
+noise with a fixed seed and writes `stand-daq-v1` (`Test_Stand/daq_format.md`, `daq.js`).
+
+The lag, the ADC width, the noise and each range are placeholders (issue #6), the same way a
+valve's open time is. They are not adjusted to change a step count. Sequence mode plays
+`GN2_STEP1` in `data/stands/gn2Coldflow.js`, the same table the stand self-test runs.
+
+## 7. Known limits (M1–M3)
 
 - Ideal gas. No Z(p,T) (v1.1), no Joule–Thomson cooling across the regulator (M4).
 - NASA-7 N₂ is fitted from 300 K; below that it extrapolates. O₂ and CH₄ are fitted from 200 K.
