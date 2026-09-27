@@ -422,6 +422,33 @@ it reproduces CoolProp's own isenthalpic flashes to 0.19 K. From 2000 to 480 psi
 leaves at 268 K and GCH₄ at 249 K. Off by default, because PROJECT_PLAN §2 assumes ambient-
 temperature propellant and the sim has no line heat transfer to warm the gas back up.
 
+## 6e. Faults, aborts and checks (M5)
+
+`physics/sequencer.js` is the brief's table driver (§4.7, driver 1). The plant takes commands by
+tag and gives transducer readings at the table's rate; the driver sees nothing else. Steps are
+scheduled up front. When a table has aborts or checks, the driver advances the plant one DAQ
+sample at a time, pushes the sample through the same observer as the DAQ file (lag, quantize),
+and evaluates the abort rules on those readings. The first trip cancels the pending steps
+(`run.cancel`) and schedules the table's named action. A table without aborts or checks plays
+exactly as before, with no extra chunking, so the M3 step counts and smoke values do not move.
+
+Faults are commands on the network: a valve frozen where it is (`stuck`), a regulator open,
+closed or creeping, an orifice partly blocked, the igniter no-light. They are the world, not the
+sequencer, so an abort never cancels them.
+
+The self-test runs a fixture table (clearly labelled: its timings and thresholds are test values,
+not a proposed sequence) on the hot-fire stand: nominal, then once per abort with the fault it
+names. Each abort stays quiet nominally, trips under its fault, runs its action, and cancels the
+rest of the table; the check `INJ-OX-01 choked` fails nominally, which is S-3 again. It then
+applies the same demonstration to every committed table. Only `gn2-step1` is committed, with no
+aborts, so the done-when is met vacuously for committed tables and demonstrated on the fixture.
+
+One observation from building the fixture: on the hot-fire and full stands the ox manifold
+overshoots to about 630 psia while it pressurizes dead-headed, above the 615 psia relief crack, and
+the first-order poppet then traps about 555 psia (§5). With placeholder regulator and relief
+values this is a model statement, not a hardware one, but an overpressure abort threshold below
+that overshoot would trip on every start.
+
 ## 7. Known limits (M1–M4)
 
 - Ideal gas. No Z(p,T) (v1.1). JT across regulators only, and only when switched on.
