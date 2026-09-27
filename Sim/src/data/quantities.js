@@ -30,6 +30,7 @@ export const LAB_UNITS = {
   'valve-timing': ['p', 'mdot', 'tau', 'x'],
   injector: ['mdot', 'p', 'CdA', 'margin'],
   'gn2-coldflow': ['p', 'mdot', 'T', 'margin', 'CdA'],
+  'full-stand': ['p', 'mdot', 'T', 'margin', 'CdA'],
 };
 
 const BASE = ['kg', 'm', 's', 'K'];

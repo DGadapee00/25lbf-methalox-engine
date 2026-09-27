@@ -123,11 +123,15 @@ function refreshControls() {
   lab.bind({ state: s, bump: () => (app.dirty = true), root, handle: app.handles[app.id] });
 }
 
+function isStand(id) {
+  return labById(id)?.kind === 'stand';
+}
+
 async function setMode(mode) {
-  if (mode === app.mode && !(mode === 'sequence' && app.id !== 'gn2-coldflow')) return;
+  if (mode === app.mode && !(mode === 'sequence' && !isStand(app.id))) return;
   app.mode = mode;
   paintModes();
-  if (mode === 'sequence' && app.id !== 'gn2-coldflow') {
+  if (mode === 'sequence' && !isStand(app.id)) {
     await openLab('gn2-coldflow');
     return;
   }

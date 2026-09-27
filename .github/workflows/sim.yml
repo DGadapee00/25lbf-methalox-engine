@@ -10,9 +10,9 @@ name: Sim
 on:
   push:
     branches: [main]
-    paths: ['Sim/**', 'Test_Stand/**', '.github/workflows/sim.yml']
+    paths: ['Sim/**', 'Test_Stand/**', 'Phase2_Design/**', '.github/workflows/sim.yml']
   pull_request:
-    paths: ['Sim/**', 'Test_Stand/**', '.github/workflows/sim.yml']
+    paths: ['Sim/**', 'Test_Stand/**', 'Phase2_Design/**', '.github/workflows/sim.yml']
   workflow_dispatch:
 
 permissions:

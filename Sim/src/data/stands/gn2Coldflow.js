@@ -14,6 +14,7 @@
  */
 import { components, injectorCdA } from '../components.js';
 import { pressureChannel } from '../sensors.js';
+import { loadSequence } from '../sequences.js';
 import { reliefCdAForFailOpen } from '../../physics/network.js';
 import { stateFromPTY, nasa7Gas, massFractions } from '../../physics/gas.js';
 import { cvToCdA } from '../../physics/elements/orifice.js';
@@ -23,22 +24,12 @@ const circle = (d) => (Math.PI / 4) * d * d;
 export const SPECIES = ['O2', 'CH4', 'N2'];
 
 /**
- * Phase 5 step 1 dry run on this circuit. Sequence mode and the stand self-test both play this
- * table; neither keeps a private copy.
+ * Phase 5 step 1 dry run on this circuit. The file is Test_Stand/sequences/gn2-step1.json.
+ * Sequence mode and the stand self-test both play this table; neither keeps a private copy.
  *
  * rateHz is the DAQ sample rate (Test_Stand/daq_format.md) and the live worker's sample grid.
  */
-export const GN2_STEP1 = {
-  id: 'gn2-step1',
-  tEnd: 7,
-  rateHz: 50,
-  steps: [
-    { t: 0.1, id: 'HV-OX-01', cmd: 'open' },
-    { t: 2.5, id: 'SV-OX-01', cmd: 'open' },
-    { t: 5.0, id: 'SV-OX-01', cmd: 'close' },
-    { t: 5.5, id: 'SV-OX-02', cmd: 'open' },
-  ],
-};
+export const GN2_STEP1 = loadSequence('gn2-step1');
 
 export function gn2Coldflow(c = components()) {
   const gas = nasa7Gas(SPECIES);

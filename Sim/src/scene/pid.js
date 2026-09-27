@@ -25,6 +25,17 @@ const S = 0.32; // symbol half-size, scene units
 const PIPE_W = 5;
 const OUTLINE = M.white;
 const CHOKE = { green: 0x83c167, amber: 0xf0ac5f, red: 0xfc6255, off: 0x444444 };
+const INK = { OX: Q.ox, FU: Q.fuel, N2: Q.n2, IG: Q.n2, CH: Q.hot };
+
+/** Symbol colour from an S-2 circuit, an engine-part tag, or the stand's single-circuit fallback. */
+function inkOf(id, fallback) {
+  const circuit = parseTag(id)?.circuit;
+  if (circuit && INK[circuit]) return INK[circuit];
+  if (id.startsWith('INJ-OX')) return Q.ox;
+  if (id.startsWith('INJ-FU')) return Q.fuel;
+  if (id === 'THROAT-01') return Q.hot;
+  return fallback;
+}
 
 /** anchor: [ax, ay] in the label's own box; [0.5, 0.5] centres it on (x, y), [0, 0] puts its top-left corner there. */
 function label(html, x, y, cls, anchor = [0.5, 0.5]) {
@@ -112,7 +123,7 @@ export class PidView {
         const h = 1.2;
         fill = add(new THREE.Mesh(new THREE.PlaneGeometry(2 * w, 2 * h), new THREE.MeshBasicMaterial({ color: 0x333333 })));
         fill.position.set(x, y, 0.01);
-        add(fatLine([x - w, y - h, 0.03, x + w, y - h, 0.03, x + w, y + h - 0.3, 0.03, x + 0.2, y + h, 0.03, x - 0.2, y + h, 0.03, x - w, y + h - 0.3, 0.03, x - w, y - h, 0.03], { color: circuitColor, width: 2.5 }));
+        add(fatLine([x - w, y - h, 0.03, x + w, y - h, 0.03, x + w, y + h - 0.3, 0.03, x + 0.2, y + h, 0.03, x - 0.2, y + h, 0.03, x - w, y + h - 0.3, 0.03, x - w, y - h, 0.03], { color: INK[n.circuit] || circuitColor, width: 2.5 }));
       } else if (kind === 'chamber') {
         const w = 0.9;
         const h = 0.55;
@@ -130,8 +141,10 @@ export class PidView {
       }
       // Bottles, chambers and reservoirs are labelled under their body. A junction can have pipes
       // on all four sides, so its label goes on the diagonal, below and right, clear of any pipe.
-      const name =
-        kind === 'junction'
+      const placed = layout.labels?.[n.id];
+      const name = placed
+        ? add(label(n.label || n.id, placed.at[0], placed.at[1], 'pid-node', placed.anchor || [0.5, 0.5]))
+        : kind === 'junction'
           ? add(label(n.label || n.id, x + 0.16, y - 0.16, 'pid-node', [0, 0]))
           : add(label(n.label || n.id, x, y - ({ bottle: 1.55, chamber: 0.85, reservoir: 0.8 }[kind] ?? 0.35), 'pid-node'));
       this.nodes.push({ id: n.id, fill, name, kind });
@@ -154,28 +167,29 @@ export class PidView {
       const halfB = add(fatLine([inB[0], inB[1], 0, B[0], B[1], 0], { color: 0x555555, width: PIPE_W }));
       const rec = { id: e.id, type: e.type, e, A, B, L, dir, halfA, halfB, fill: null, choke: null, dots: [], phase: 0 };
       const letters = parseTag(e.id)?.letters;
+      const ink = inkOf(e.id, circuitColor);
       if (e.type === 'valve' || e.type === 'regulator') {
         const bow = [[[-S, -S * 0.75], [-S, S * 0.75], [0, 0], [-S, -S * 0.75]], [[S, -S * 0.75], [S, S * 0.75], [0, 0], [S, -S * 0.75]]];
         rec.fill = add(triMesh(Mid, dir, [[[-S, -S * 0.75], [-S, S * 0.75], [0, 0]], [[S, -S * 0.75], [S, S * 0.75], [0, 0]]], 0x222222));
-        for (const b of bow) add(fatLine(place(Mid, dir, b), { color: circuitColor, width: 2 }));
+        for (const b of bow) add(fatLine(place(Mid, dir, b), { color: ink, width: 2 }));
         if (e.type === 'regulator') {
           const arc = [];
           for (let k = 0; k <= 12; k++) arc.push([0.22 * Math.cos((Math.PI * k) / 12), S * 0.3 + 0.22 * Math.sin((Math.PI * k) / 12)]);
-          add(fatLine(place(Mid, dir, [[0, 0], [0, S * 0.3], ...arc]), { color: circuitColor, width: 2 }));
+          add(fatLine(place(Mid, dir, [[0, 0], [0, S * 0.3], ...arc]), { color: ink, width: 2 }));
         } else if (letters === 'HV') {
-          add(fatSegments(segs(Mid, dir, [[[0, 0], [0, S * 1.2]], [[-S * 0.6, S * 1.2], [S * 0.6, S * 1.2]]]), { color: circuitColor, width: 2 }));
+          add(fatSegments(segs(Mid, dir, [[[0, 0], [0, S * 1.2]], [[-S * 0.6, S * 1.2], [S * 0.6, S * 1.2]]]), { color: ink, width: 2 }));
         } else {
-          add(fatSegments(segs(Mid, dir, [[[0, 0], [0, S * 1.0]], [[-S * 0.45, S * 1.0], [S * 0.45, S * 1.0]], [[-S * 0.45, S * 1.6], [S * 0.45, S * 1.6]], [[-S * 0.45, S * 1.0], [-S * 0.45, S * 1.6]], [[S * 0.45, S * 1.0], [S * 0.45, S * 1.6]]]), { color: circuitColor, width: 2 }));
+          add(fatSegments(segs(Mid, dir, [[[0, 0], [0, S * 1.0]], [[-S * 0.45, S * 1.0], [S * 0.45, S * 1.0]], [[-S * 0.45, S * 1.6], [S * 0.45, S * 1.6]], [[-S * 0.45, S * 1.0], [-S * 0.45, S * 1.6]], [[S * 0.45, S * 1.0], [S * 0.45, S * 1.6]]]), { color: ink, width: 2 }));
         }
       } else if (e.type === 'relief') {
         rec.fill = add(triMesh(Mid, dir, [[[-S, -S * 0.75], [-S, S * 0.75], [0, 0]]], 0x222222));
-        add(fatLine(place(Mid, dir, [[-S, -S * 0.75], [-S, S * 0.75], [0, 0], [-S, -S * 0.75]]), { color: circuitColor, width: 2 }));
+        add(fatLine(place(Mid, dir, [[-S, -S * 0.75], [-S, S * 0.75], [0, 0], [-S, -S * 0.75]]), { color: ink, width: 2 }));
         const zig = [[0, 0]];
         for (let k = 1; k <= 6; k++) zig.push([(k % 2 ? 1 : -1) * 0.12, k * 0.1]);
-        add(fatLine(place(Mid, dir, zig.map(([v, u]) => [-u, v])), { color: circuitColor, width: 2 }));
+        add(fatLine(place(Mid, dir, zig.map(([v, u]) => [-u, v])), { color: ink, width: 2 }));
       } else if (e.type === 'check') {
-        add(fatLine(place(Mid, dir, [[-S, -S * 0.7], [-S, S * 0.7], [S * 0.6, 0], [-S, -S * 0.7]]), { color: circuitColor, width: 2 }));
-        add(fatSegments(segs(Mid, dir, [[[S * 0.6, -S * 0.8], [S * 0.6, S * 0.8]]]), { color: circuitColor, width: 2 }));
+        add(fatLine(place(Mid, dir, [[-S, -S * 0.7], [-S, S * 0.7], [S * 0.6, 0], [-S, -S * 0.7]]), { color: ink, width: 2 }));
+        add(fatSegments(segs(Mid, dir, [[[S * 0.6, -S * 0.8], [S * 0.6, S * 0.8]]]), { color: ink, width: 2 }));
       } else if (e.type === 'orifice') {
         add(fatSegments(segs(Mid, dir, [[[-0.07, -S], [-0.07, S]], [[0.07, -S], [0.07, S]]]), { color: OUTLINE, width: 2.5 }));
         rec.choke = add(new THREE.Mesh(new THREE.CircleGeometry(0.13, 20), new THREE.MeshBasicMaterial({ color: CHOKE.off })));

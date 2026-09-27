@@ -14,8 +14,8 @@ test step.** Until a component has been calibrated against measured data, it is 
 | M0 Scaffold | done: app shell, tests, CI, Pages deploy |
 | M1 Component library + network solver (headless) | done: V-1 to V-6 (plus V-3, V-9, regulator settling); see [docs/solver.md](docs/solver.md) |
 | M2 Component labs + P&ID view, GN₂ cold-flow stand in Operate mode | done: Blowdown, Orifice, Regulator; live stand in a Web Worker |
-| M3 Ros3, sensors, Sequence, valve timing, injector | this: Rosenbrock default; DAQ CSV (`Test_Stand/daq_format.md`); Sequence mode on the step-1 table; Valve timing and Injector labs |
-| M4–M7 | chamber fill onward; the two-circuit full stand is still ahead |
+| M3 Full stand, cold flow | this: two propellant circuits and a purge, all bottles GN₂; sequence table (`Test_Stand/sequences/gn2-step1.json`) and timeline scrub; Phase 5 step 1 and step 3 predictions in `predictions/phase5.json`. Rosenbrock, DAQ CSV, the valve-timing lab and the injector lab are included |
+| M4–M7 | chamber fill onward |
 
 ## Run it
 
@@ -44,7 +44,7 @@ Sim/
 │   ├── engine/            # router (#/lab/<id>, #/stand/<id>); physics Web Worker and its client
 │   ├── scene/             # three.js: renderer, palette, P&ID view (pid.js)
 │   ├── ui/                # KaTeX helpers, units formatting, plots, predict-first cards
-│   ├── data/              # catalog, units registry, S-2 tags, component loader, stands/
+│   ├── data/              # catalog, units registry, S-2 tags, component loader, sequence loader, stands/
 │   └── physics/           # pure and headless: no DOM, no three.js, no KaTeX
 │       ├── gas.js         # ideal-gas mixtures: NASA-7 or calorically perfect
 │       ├── elements/      # orifice, valve, regulator (check/relief live in network.js)
@@ -54,6 +54,7 @@ Sim/
 │       ├── daq.js         # stand-daq-v1 CSV (Test_Stand/daq_format.md)
 │       ├── simulate.js    # driver: breakpoints, state events, sampling, stats; steppable runs
 │       ├── analysis.js    # derived readouts: fails-open peak manifold pressure
+│       ├── predictions.js # Phase 5 step 1 and step 3 from the cold-flow model
 │       └── selftest/      # npm test suites, one per topic
 ├── scripts/               # smoke, headless guard, shell checks, live
 ├── tools/                 # offline generators for data/ (Python)

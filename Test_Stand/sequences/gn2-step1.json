@@ -1,0 +1,12 @@
+{
+  "id": "gn2-step1",
+  "purpose": "Phase 5 step 1 dry run on the oxidizer circuit with GN2: leak check, valve timing, sequencer. Fuel and purge are not commanded. Not a hot-fire sequence.",
+  "tEnd": 7,
+  "rateHz": 50,
+  "steps": [
+    { "t": 0.1, "cmd": { "HV-OX-01": "open" } },
+    { "t": 2.5, "cmd": { "SV-OX-01": "open" } },
+    { "t": 5.0, "cmd": { "SV-OX-01": "close" } },
+    { "t": 5.5, "cmd": { "SV-OX-02": "open" } }
+  ]
+}

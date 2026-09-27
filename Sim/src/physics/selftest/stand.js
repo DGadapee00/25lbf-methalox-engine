@@ -9,7 +9,7 @@ import { failsOpenPeaks } from '../analysis.js';
 import { gn2Coldflow, GN2_STEP1 } from '../../data/stands/gn2Coldflow.js';
 import { measureSeries, lsb } from '../sensors.js';
 import { daqCsv, parseDaq } from '../daq.js';
-import { components, provenance } from '../../data/components.js';
+import { components, provenance, componentProblems } from '../../data/components.js';
 import { tagProblems } from '../../data/tags.js';
 import raw from '../../../data/components.json' with { type: 'json' };
 import { PSI } from '../constants.js';
@@ -27,8 +27,8 @@ export function run() {
     refused = /source or placeholder/.test(e.message);
   }
   ok(refused, 'the loader refuses a number with neither a source nor a placeholder flag');
-  const everyPart = Object.values(raw.parts).flatMap((p) => Object.values(p));
-  ok(everyPart.every((v) => v.source || v.placeholder), 'every value in components.json has a source or is a placeholder');
+  const problems = componentProblems(raw);
+  ok(!problems.length, `every value in components.json has a source or is a placeholder (${problems.join('; ') || 'clean'})`);
 
   section('Stand · Phase 5 step 1 sequence on the defaults (placeholders, uncalibrated)');
   const r = simulate(s.net, { gas: s.gas, tEnd: GN2_STEP1.tEnd, schedule: GN2_STEP1.steps, sampleDt: 0.05 });

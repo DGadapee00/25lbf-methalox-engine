@@ -64,5 +64,25 @@
       "value": 5129044.05684668,
       "tol": 0.0001
     }
+  },
+  "full-stand": {
+    "full-stand.readout.nodes.ox-manifold.p": {
+      "value": 3315749.653127808,
+      "tol": 0.01
+    },
+    "full-stand.readout.nodes.fu-manifold.p": {
+      "value": 101325,
+      "tol": 0.01
+    },
+    "full-stand.choke.INJ-OX-01": {
+      "equals": "green"
+    },
+    "full-stand.choke.INJ-FU-01": {
+      "equals": "off"
+    },
+    "full-stand.failsOpen.0.peak": {
+      "value": 5125307.5769144865,
+      "tol": 0.0001
+    }
   }
 }

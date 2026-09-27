@@ -18,11 +18,12 @@ import * as regulator from './selftest/regulator.js';
 import * as reliefcheck from './selftest/reliefcheck.js';
 import * as cv from './selftest/cv.js';
 import * as stand from './selftest/stand.js';
+import * as fullstand from './selftest/fullstand.js';
 import * as sensors from './selftest/sensors.js';
 import * as valveTiming from './selftest/valveTiming.js';
 import * as injector from './selftest/injector.js';
 
-const SUITES = [registry, thermo, integrator, orifice, blowdown, driver, conservation, devices, regulator, reliefcheck, cv, sensors, valveTiming, injector, stand];
+const SUITES = [registry, thermo, integrator, orifice, blowdown, driver, conservation, devices, regulator, reliefcheck, cv, sensors, valveTiming, injector, stand, fullstand];
 
 for (const s of SUITES) await s.run();
 await stiffnessReport();

@@ -11,10 +11,10 @@ export const LABS = [
   { id: 'valve-timing', kind: 'lab', title: 'Valve timing', milestone: 'M3' },
   { id: 'injector', kind: 'lab', title: 'Injector', milestone: 'M3' },
   { id: 'gn2-coldflow', kind: 'stand', title: 'GN₂ cold-flow stand', milestone: 'M3' },
+  { id: 'full-stand', kind: 'stand', title: 'Full stand', milestone: 'M3' },
 ];
 
 export const COMING = [
-  { title: 'Full stand', milestone: 'M3' },
   { title: 'Chamber fill', milestone: 'M4' },
 ];
 

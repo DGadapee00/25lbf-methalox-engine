@@ -1,5 +1,9 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Which commit a build came from.
@@ -45,6 +49,8 @@ export default defineConfig({
   server: {
     port: 5175,
     open: true,
+    // Sequence files live in Test_Stand/, one level above this Vite root.
+    fs: { allow: [here, path.resolve(here, '..')] },
   },
   build: {
     target: 'esnext',

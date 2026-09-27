@@ -3,7 +3,7 @@
   "generator": "hand-entered",
   "generated": "2026-09-26",
   "commit": "97c9add",
-  "note": "GN2 cold-flow stand defaults (Phase 5 step 1), ox-circuit hardware flowing GN2. Values are in the units a datasheet uses; src/data/components.js converts to SI. Every value carries either a source or placeholder:true with the tracking issue. The app labels placeholders on screen.",
+  "note": "Stand defaults. The single-circuit GN2 stand uses the ox-circuit parts. The full cold-flow stand adds fuel and purge parts: sameAs copies placeholders from a part that is also unselected, and sourced fields are restated on the part they belong to. Values are in the units a datasheet uses; src/data/components.js converts to SI. Every value carries either a source or placeholder:true with the tracking issue. The app labels placeholders on screen.",
   "parts": {
     "ambient": {
       "p": {
@@ -311,6 +311,185 @@
         "issue": 6,
         "note": "chamber full scale; covers the 250 psia design point with margin"
       }
+    },
+    "bottle-fu": {
+      "sameAs": "bottle",
+      "issue": 6,
+      "note": "no fuel bottle selected; same volume and fill placeholders as the oxidizer bottle"
+    },
+    "hpline-fu": {
+      "sameAs": "hpline",
+      "issue": 6,
+      "note": "no fuel high-pressure run measured; same tube-volume placeholder as the oxidizer line"
+    },
+    "manifold-fu": {
+      "sameAs": "manifold",
+      "issue": 6,
+      "note": "no fuel manifold volume measured; same placeholder as the oxidizer manifold"
+    },
+    "line-fu": {
+      "sameAs": "line",
+      "issue": 6,
+      "note": "no fuel run volume measured; same placeholder as the oxidizer line"
+    },
+    "HV-FU-01": {
+      "sameAs": "HV-OX-01",
+      "issue": 6,
+      "note": "no fuel isolation valve selected; same placeholders as HV-OX-01"
+    },
+    "PCV-FU-01": {
+      "sameAs": "PCV-OX-01",
+      "issue": 6,
+      "note": "no fuel regulator selected; droop, Cv and lag are the oxidizer placeholders",
+      "pSet": {
+        "value": 480,
+        "unit": "psia",
+        "source": "PROJECT_PLAN \u00a72.3 manifold pressure, both circuits (flowing, at rated flow)"
+      },
+      "mdotRated": {
+        "value": 13.9,
+        "unit": "g/s",
+        "source": "PROJECT_PLAN \u00a72.2 fuel flow"
+      }
+    },
+    "PSV-FU-01": {
+      "sameAs": "PSV-OX-01",
+      "issue": 6,
+      "note": "no fuel relief selected; set, blowdown, lift time and sizing margin match the oxidizer placeholders (one MEOP covers both manifolds)",
+      "accumulation": {
+        "value": 0.1,
+        "unit": "1",
+        "source": "Dalton, 2026-09-26: full lift at set + 10%"
+      }
+    },
+    "SV-FU-01": {
+      "sameAs": "SV-OX-01",
+      "issue": 6,
+      "note": "no fuel main valve selected; D-5 open; same placeholders as SV-OX-01"
+    },
+    "SV-FU-02": {
+      "sameAs": "SV-OX-02",
+      "issue": 6,
+      "note": "no fuel manifold vent selected; same placeholders as SV-OX-02"
+    },
+    "PT-FU-01": {
+      "sameAs": "PT-OX-01",
+      "issue": 6,
+      "note": "no fuel bottle transducer selected; same full-scale placeholder as PT-OX-01"
+    },
+    "PT-FU-02": {
+      "sameAs": "PT-OX-02",
+      "issue": 6,
+      "note": "no fuel manifold transducer selected; same full-scale placeholder as PT-OX-02"
+    },
+    "PT-FU-03": {
+      "sameAs": "PT-OX-03",
+      "issue": 6,
+      "note": "no fuel line transducer selected; same full-scale placeholder as PT-OX-03"
+    },
+    "bottle-n2": {
+      "sameAs": "bottle",
+      "issue": 6,
+      "note": "no purge bottle selected; same volume and fill placeholders as the oxidizer bottle"
+    },
+    "hpline-n2": {
+      "sameAs": "hpline",
+      "issue": 6,
+      "note": "no purge high-pressure run measured; same tube-volume placeholder as the oxidizer line"
+    },
+    "manifold-n2": {
+      "sameAs": "manifold",
+      "issue": 6,
+      "note": "no purge manifold volume measured; same placeholder as the oxidizer manifold"
+    },
+    "line-n2": {
+      "sameAs": "line",
+      "issue": 6,
+      "note": "no purge run volume measured; same placeholder as the oxidizer line"
+    },
+    "HV-N2-01": {
+      "sameAs": "HV-OX-01",
+      "issue": 6,
+      "note": "no purge isolation valve selected; same placeholders as HV-OX-01"
+    },
+    "PCV-N2-01": {
+      "sameAs": "PCV-OX-01",
+      "issue": 6,
+      "note": "no purge regulator selected; droop, Cv and lag are the oxidizer placeholders. The set point below is a stand-in so the circuit can be operated, not a purge specification",
+      "pSet": {
+        "value": 100,
+        "unit": "psia",
+        "placeholder": true,
+        "issue": 6,
+        "note": "stand-in purge set point, not a specification; no regulator selected"
+      },
+      "mdotRated": {
+        "value": 1,
+        "unit": "g/s",
+        "placeholder": true,
+        "issue": 6,
+        "note": "stand-in rated flow; no purge flow has been specified"
+      }
+    },
+    "PSV-N2-01": {
+      "sameAs": "PSV-OX-01",
+      "issue": 6,
+      "note": "no purge relief selected; blowdown, lift time and sizing margin match the oxidizer placeholders",
+      "set": {
+        "value": 125,
+        "unit": "psi",
+        "placeholder": true,
+        "issue": 6,
+        "note": "stand-in set \u0394p above the stand-in purge lockup (set point 100 psia plus 20 psi droop); MEOP not chosen. Not the propellant relief set"
+      },
+      "accumulation": {
+        "value": 0.1,
+        "unit": "1",
+        "source": "Dalton, 2026-09-26: full lift at set + 10%"
+      }
+    },
+    "SV-N2-01": {
+      "sameAs": "SV-OX-01",
+      "issue": 6,
+      "note": "no purge valve selected; D-5 open; same placeholders as SV-OX-01"
+    },
+    "SV-N2-02": {
+      "sameAs": "SV-OX-02",
+      "issue": 6,
+      "note": "no purge manifold vent selected; same placeholders as SV-OX-02"
+    },
+    "CKV-N2-01": {
+      "Cv": {
+        "value": 0.3,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "no check valve selected; Cv placeholder in the vent-valve class"
+      },
+      "crack": {
+        "value": 5,
+        "unit": "psi",
+        "placeholder": true,
+        "issue": 6,
+        "note": "stand-in cracking \u0394p; no check valve selected. crack must exceed reseat"
+      },
+      "reseat": {
+        "value": 2,
+        "unit": "psi",
+        "placeholder": true,
+        "issue": 6,
+        "note": "stand-in reseat \u0394p; no check valve selected"
+      }
+    },
+    "PT-N2-01": {
+      "sameAs": "PT-OX-01",
+      "issue": 6,
+      "note": "no purge bottle transducer selected; same full-scale placeholder as PT-OX-01"
+    },
+    "PT-N2-02": {
+      "sameAs": "PT-OX-02",
+      "issue": 6,
+      "note": "no purge manifold transducer selected; same full-scale placeholder as PT-OX-02"
     }
   }
 }

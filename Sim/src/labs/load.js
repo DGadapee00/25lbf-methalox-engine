@@ -6,6 +6,7 @@ const loaders = {
   'valve-timing': () => import('./valveTiming.js'),
   injector: () => import('./injector.js'),
   'gn2-coldflow': () => import('./stand.js'),
+  'full-stand': () => import('./fullStand.js'),
 };
 
 const cache = new Map();

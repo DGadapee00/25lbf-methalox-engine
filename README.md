@@ -43,6 +43,7 @@ Each phase ends at a tagged gate (`v0.1-requirements` → `v1.1-published`). See
 ├── CAD/                      # Siemens NX files, STEP exports
 ├── Fabrication/
 ├── Test_Stand/
+│   ├── sequences/            # valve sequence tables (gn2-step1.json)
 │   └── firmware/             # sequencer firmware
 ├── Sim/                      # stand + feed-system simulator (browser app); see Sim/README.md
 ├── Data_Logs/
