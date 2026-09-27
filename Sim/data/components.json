@@ -3,7 +3,7 @@
   "generator": "hand-entered",
   "generated": "2026-09-26",
   "commit": "97c9add",
-  "note": "Stand defaults. The single-circuit GN2 stand uses the ox-circuit parts. The full cold-flow stand adds fuel and purge parts: sameAs copies placeholders from a part that is also unselected, and sourced fields are restated on the part they belong to. Values are in the units a datasheet uses; src/data/components.js converts to SI. Every value carries either a source or placeholder:true with the tracking issue. The app labels placeholders on screen.",
+  "note": "Stand defaults. The single-circuit GN2 stand uses the ox-circuit parts. The full cold-flow stand adds fuel and purge parts: sameAs copies placeholders from a part that is also unselected, and sourced fields are restated on the part they belong to. Values are in the units a datasheet uses; src/data/components.js converts to SI. Every value carries either a source or placeholder:true with the tracking issue. The app labels placeholders on screen. The hot-fire stand (M4) reuses the full stand's parts with GOX and GCH4 in the propellant bottles, adds the c* efficiency, nozzle and load cell entries, and has no invented sequence.",
   "parts": {
     "ambient": {
       "p": {
@@ -237,6 +237,12 @@
         "value": 45,
         "unit": "cm3",
         "source": "PROJECT_PLAN §2.2 (≈45 cm³)"
+      },
+      "etaCstar": {
+        "value": 0.92,
+        "unit": "1",
+        "source": "PROJECT_PLAN §2.1 (c* efficiency, assumed: \"conservative for this scale\")",
+        "uncalibrated": true
       }
     },
     "THROAT-01": {
@@ -251,6 +257,16 @@
         "placeholder": true,
         "issue": 6,
         "note": "ideal; replace from cold-flow data"
+      },
+      "eps": {
+        "value": 3.0,
+        "unit": "1",
+        "source": "PROJECT_PLAN §2.1 expansion ratio"
+      },
+      "halfAngle": {
+        "value": 15,
+        "unit": "deg",
+        "source": "PROJECT_PLAN §3 Phase 1: nozzle contour conical 15° for v1 (divergence factor λ = (1 + cos α)/2, Sutton & Biblarz eq. 3-34)"
       }
     },
     "pt": {
@@ -344,12 +360,12 @@
       "pSet": {
         "value": 480,
         "unit": "psia",
-        "source": "PROJECT_PLAN \u00a72.3 manifold pressure, both circuits (flowing, at rated flow)"
+        "source": "PROJECT_PLAN §2.3 manifold pressure, both circuits (flowing, at rated flow)"
       },
       "mdotRated": {
         "value": 13.9,
         "unit": "g/s",
-        "source": "PROJECT_PLAN \u00a72.2 fuel flow"
+        "source": "PROJECT_PLAN §2.2 fuel flow"
       }
     },
     "PSV-FU-01": {
@@ -440,7 +456,7 @@
         "unit": "psi",
         "placeholder": true,
         "issue": 6,
-        "note": "stand-in set \u0394p above the stand-in purge lockup (set point 100 psia plus 20 psi droop); MEOP not chosen. Not the propellant relief set"
+        "note": "stand-in set Δp above the stand-in purge lockup (set point 100 psia plus 20 psi droop); MEOP not chosen. Not the propellant relief set"
       },
       "accumulation": {
         "value": 0.1,
@@ -471,14 +487,14 @@
         "unit": "psi",
         "placeholder": true,
         "issue": 6,
-        "note": "stand-in cracking \u0394p; no check valve selected. crack must exceed reseat"
+        "note": "stand-in cracking Δp; no check valve selected. crack must exceed reseat"
       },
       "reseat": {
         "value": 2,
         "unit": "psi",
         "placeholder": true,
         "issue": 6,
-        "note": "stand-in reseat \u0394p; no check valve selected"
+        "note": "stand-in reseat Δp; no check valve selected"
       }
     },
     "PT-N2-01": {
@@ -490,6 +506,38 @@
       "sameAs": "PT-OX-02",
       "issue": 6,
       "note": "no purge manifold transducer selected; same full-scale placeholder as PT-OX-02"
+    },
+    "lc": {
+      "tau": {
+        "value": 5,
+        "unit": "ms",
+        "placeholder": true,
+        "issue": 6,
+        "note": "first-order lag of the thrust load cell and mount; no load cell selected"
+      },
+      "bits": {
+        "value": 16,
+        "unit": "1",
+        "placeholder": true,
+        "issue": 6,
+        "note": "ADC width across the channel's full-scale range"
+      },
+      "noise": {
+        "value": 0.05,
+        "unit": "lbf",
+        "placeholder": true,
+        "issue": 6,
+        "note": "1-sigma of the reading; applied only when a DAQ log is given a noise seed"
+      }
+    },
+    "LC-CH-01": {
+      "range": {
+        "value": 100,
+        "unit": "lbf",
+        "placeholder": true,
+        "issue": 6,
+        "note": "load cell full scale; covers the 25 lbf design thrust (PROJECT_PLAN §2.2) with headroom for an ignition spike"
+      }
     }
   }
 }

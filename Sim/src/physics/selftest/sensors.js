@@ -36,6 +36,10 @@ export function run() {
   ok(noisy[1].values['PT-OX-03'] === again[1].values['PT-OX-03'], 'the same noise seed rewrites the same reading');
   ok(noisy[1].values['PT-OX-03'] !== quiet[1].values['PT-OX-03'], 'a seeded log is not the quiet reading');
 
+  const lc = [{ tag: 'LC-CH-01', node: 'chamber', quantity: 'F', unit: 'N', range: 500, bits: 16, tau, noise: 0 }];
+  const thrust = measureSeries([{ t: 0, p: { chamber: 2e6 }, F: { chamber: 0 } }, { t: tau, p: { chamber: 2e6 }, F: { chamber: 120 } }], lc);
+  approx(thrust[1].values['LC-CH-01'], quantize(120 * (1 - Math.exp(-1)), 500, 16), 1e-9, 'a load-cell channel reads thrust, not the node pressure, through the same lag and quantization');
+
   section('DAQ · stand-daq-v1 round trip');
   const csv = daqCsv({ run: 'gn2-coldflow/gn2-step1', rateHz: 50, channels: ch, rows: noisy, seed: 1 });
   ok(!csv.includes('\r') && csv.endsWith('\n') && !csv.startsWith('\uFEFF'), 'LF, trailing newline, no BOM');

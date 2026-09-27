@@ -46,8 +46,9 @@ function gaussian(uniform) {
 }
 
 /**
- * samples: [{ t, p: { nodeId: Pa } }], increasing in t.
- * channels: [{ tag, node, range, bits, tau, noise }].
+ * samples: [{ t, p: { nodeId: Pa }, F?: { chamberId: N } }], increasing in t.
+ * channels: [{ tag, node, quantity?, range, bits, tau, noise }]. A 'F' channel (load cell) reads
+ * the sample's thrust for its chamber; every other channel reads the node pressure.
  * seed: integer to apply noise; omit it for the quiet reading (lag and quantization only).
  * Returns [{ t, values: { tag: number } }].
  */
@@ -55,14 +56,15 @@ export function measureSeries(samples, channels, { seed = null } = {}) {
   if (!samples.length) return [];
   const rng = seed == null ? null : mulberry32(seed);
   const y = {};
-  for (const ch of channels) y[ch.tag] = samples[0].p[ch.node];
+  const read = (s, ch) => (ch.quantity === 'F' ? s.F?.[ch.node] : s.p[ch.node]);
+  for (const ch of channels) y[ch.tag] = read(samples[0], ch);
   const out = [];
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
     const dt = i === 0 ? 0 : s.t - samples[i - 1].t;
     const values = {};
     for (const ch of channels) {
-      const target = s.p[ch.node];
+      const target = read(s, ch);
       if (target === undefined) throw new Error(`measureSeries: ${ch.tag} reads node ${ch.node}, which this sample does not have`);
       const quiet = i === 0 ? target : stepLag(y[ch.tag], target, dt, ch.tau);
       y[ch.tag] = quiet;

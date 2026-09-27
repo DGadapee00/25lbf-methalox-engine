@@ -53,4 +53,5 @@ export function run() {
   ok(tagProblems({ edges: [{ id: 'PSV-OX-01', type: 'valve' }] }).length === 1, 'a relief code on a plain valve is flagged');
   ok(!tagProblems({ edges: [{ id: 'RO-N2-01', type: 'orifice' }, { id: 'FE-OX-01', type: 'orifice' }, { id: 'THROAT-01', type: 'orifice' }] }).length, 'orifices take RO / FE stand tags or an engine-part tag');
   ok(tagProblems({ edges: [{ id: 'INJ-OX', type: 'orifice' }, { id: 'INJ-LOX-01', type: 'orifice' }] }).length === 2, 'an orifice with neither is flagged (engine parts come from the allowed list only)');
+  ok(!tagProblems({ edges: [], igniters: [{ id: 'IGN-IG-01' }] }).length && tagProblems({ edges: [], igniters: [{ id: 'IGN-01' }] }).length === 1, 'igniters carry an igniter tag (IGN-IG-01, provisional); the brief\'s IGN-01 example is flagged');
 }

@@ -68,7 +68,7 @@ export function createRun(net, opts) {
   };
 
   const out = { t: [], samples: [], events: [], stats: null, peaks: null };
-  const vols = sys.nodes.map((n, k) => [n, k]).filter(([n]) => n.kind === 'volume');
+  const vols = sys.nodes.map((n, k) => [n, k]).filter(([n]) => n.kind !== 'ambient');
   const peaks = opts.trackPeaks ? Object.fromEntries(vols.map(([n]) => [n.id, { p: -Infinity, t: 0 }])) : null;
   const yP = new Float64Array(sys.nState);
   const notePeaks = (tt, yy) => {
@@ -103,13 +103,28 @@ export function createRun(net, opts) {
   let rejected = 0;
   let nEv = 0;
 
+  /** Chamber modes a command or an event left behind with no crossing to find (network.js). */
+  const reconcile = (tt) => {
+    if (!sys.reconcile) return;
+    for (let k = 0; k < 4; k++) {
+      const fired = sys.reconcile(tt, y);
+      if (!fired.length) return;
+      out.events.push(...fired);
+      nEv += fired.length;
+      solver.reset();
+    }
+  };
+
   const applyCommandsAt = (tt) => {
+    let any = false;
     while (ci < cmds.length && cmds[ci].t <= tt) {
       const c = cmds[ci++];
       for (const b of sys.command(c.t, c.id, c.cmd)) bps.add(b);
       out.events.push({ t: c.t, id: c.id, what: typeof c.cmd === 'object' ? JSON.stringify(c.cmd) : String(c.cmd) });
       solver.reset();
+      any = true;
     }
+    if (any) reconcile(tt);
   };
 
   let started = false;
@@ -122,7 +137,8 @@ export function createRun(net, opts) {
     // crossing. One pass suffices: crack > reseat, so a switched mode is stable.
     if (sys.nEvents) {
       sys.events(t, y, g0);
-      for (let k = 0; k < sys.nEvents; k++) if (g0[k] >= 0) out.events.push(sys.fireEvent(k, 0)), nEv++;
+      for (let k = 0; k < sys.nEvents; k++) if (g0[k] >= 0 && k < (sys.nCheckEvents ?? sys.nEvents)) out.events.push(sys.fireEvent(k, 0, y)), nEv++;
+      reconcile(0);
       sys.events(t, y, g0);
       solver.reset();
     }
@@ -146,6 +162,7 @@ export function createRun(net, opts) {
     for (const b of sys.command(t, id, cmd)) bps.add(b);
     out.events.push({ t, id, what: typeof cmd === 'object' ? JSON.stringify(cmd) : String(cmd) });
     solver.reset();
+    reconcile(t);
     if (sys.nEvents) sys.events(t, y, g0);
     if (sys.nKinks) sys.kinks(t, y, k0);
   }
@@ -226,9 +243,10 @@ export function createRun(net, opts) {
           while (tSample <= tFirst + 1e-15) sample(tSample, solver.dense(tSample, yS)), (tSample += sampleDt);
           y.set(yE);
           tNew = tFirst;
-          out.events.push(sys.fireEvent(fired, tNew));
+          out.events.push(sys.fireEvent(fired, tNew, y));
           if (++nEv > maxEvents) throw new Error(`simulate: more than ${maxEvents} state events (chattering?)`);
           solver.reset();
+          reconcile(tNew);
           sys.events(tNew, y, g1);
         }
       }

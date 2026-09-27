@@ -15,13 +15,28 @@
  * the network only ever asks a node for p, T, h and the upstream orifice properties.
  */
 import thermo from '../../data/thermo_nasa7.json' with { type: 'json' };
+import cea from '../../data/cea_gox_gch4.json' with { type: 'json' };
 import { R_U } from './constants.js';
 
 /** Reference temperature for perfectGas enthalpy, K (standard state, 25 °C). */
 export const T_REF = 298.15;
 
+/**
+ * Burned gas, as two bookkeeping species. A burning chamber (physics/chamber.js) turns the O₂ and
+ * CH₄ it receives into PRODox and PRODfu: the same mass, labelled by which propellant it came from,
+ * so the chamber's mixture ratio is PRODox/PRODfu and every element is conserved. While the chamber
+ * burns, its state comes from the CEA table, not from these properties. They matter only where
+ * burned gas sits outside a burning chamber (the chamber after shutdown, a line after backflow,
+ * the ambient accumulator): there it is a calorically perfect gas with the chamber's molar mass and
+ * frozen c_p at the CEA design point (PROJECT_PLAN §2.1: 250 psia, O/F 2.8), h = c_p (T − T_REF).
+ * An approximation, stated in docs/solver.md §7.
+ */
+export const PRODUCTS = ['PRODox', 'PRODfu'];
+const PRODUCT_REC = { W: cea.design_point.M, cp: cea.design_point.cp_frozen };
+
 export function nasa7Gas(names = ['O2', 'CH4', 'N2']) {
   const recs = names.map((n) => {
+    if (PRODUCTS.includes(n)) return { product: true, W: PRODUCT_REC.W };
     const r = thermo.species[n];
     if (!r) throw new Error(`nasa7Gas: no thermo data for "${n}" (data/thermo_nasa7.json)`);
     return r;
@@ -36,12 +51,14 @@ export function nasa7Gas(names = ['O2', 'CH4', 'N2']) {
     W,
     R,
     /** Validity range per species, K. Outside it the polynomials extrapolate. */
-    range: recs.map((r) => [r.T_low, r.T_high]),
+    range: recs.map((r) => (r.product ? [0, Infinity] : [r.T_low, r.T_high])),
     cp(i, T) {
+      if (recs[i].product) return PRODUCT_REC.cp;
       const a = coeffs(recs[i], T);
       return R[i] * (a[0] + T * (a[1] + T * (a[2] + T * (a[3] + T * a[4]))));
     },
     h(i, T) {
+      if (recs[i].product) return PRODUCT_REC.cp * (T - T_REF);
       const a = coeffs(recs[i], T);
       return R[i] * T * (a[0] + T * (a[1] / 2 + T * (a[2] / 3 + T * (a[3] / 4 + (T * a[4]) / 5)))) + R[i] * a[5];
     },
