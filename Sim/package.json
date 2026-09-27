@@ -16,7 +16,8 @@
     "live": "node scripts/live.mjs",
     "sweep": "node scripts/sweep.mjs",
     "predict": "node scripts/predict.mjs",
-    "validate": "node scripts/validate.mjs"
+    "validate": "node scripts/validate.mjs",
+    "sil-check": "node scripts/sil-check.mjs"
   },
   "dependencies": {
     "katex": "^0.16.47",

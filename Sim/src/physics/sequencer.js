@@ -37,7 +37,7 @@ import { createObserver } from './sensors.js';
 import { PSI, LBF } from './constants.js';
 
 const UNIT = { Pa: 1, kPa: 1e3, MPa: 1e6, psia: PSI, lbf: LBF, N: 1, K: 1, J: 1 };
-const OPS = { '<': (a, b) => a < b, '<=': (a, b) => a <= b, '>': (a, b) => a > b, '>=': (a, b) => a >= b };
+export const OPS = { '<': (a, b) => a < b, '<=': (a, b) => a <= b, '>': (a, b) => a > b, '>=': (a, b) => a >= b };
 const SENSOR_RE = /^(PT|TE|LC)-(OX|FU|N2|IG|CH)-\d{2}$/;
 
 function num(tok, text) {
@@ -102,7 +102,7 @@ export function parseCheck(text) {
   return parseCompare(toks, text);
 }
 
-const inWindow = (w, t, tAbort) => {
+export const inWindow = (w, t, tAbort) => {
   const from = w.afterAbort !== null ? (tAbort == null ? Infinity : tAbort + w.afterAbort) : w.from;
   return t >= from - 1e-9 && t <= w.to + 1e-9;
 };
@@ -188,38 +188,8 @@ export function createSequenceRun(stand, sequence, { faults = [], seed = null, m
 
   /** Pass/fail over what has run so far. */
   function report() {
-    const out = run.out;
-    const ignitions = out.events.filter((e) => e.what === 'ignition');
-    const tA = fired?.t ?? null;
-    const res = checks.map((c) => {
-      const r = c.rule;
-      let pass = true;
-      let detail = '';
-      if (r.kind === 'no-abort') {
-        pass = !fired;
-        detail = fired ? `${fired.id} fired at ${fired.t.toFixed(3)} s` : 'no abort fired';
-      } else if (r.kind === 'ignition-energy') {
-        if (!ignitions.length) {
-          pass = false;
-          detail = 'no ignition happened';
-        } else {
-          const worst = Math.max(...ignitions.map((e) => e.unburnedEnergy));
-          pass = ignitions.every((e) => OPS[r.op](e.unburnedEnergy, r.value));
-          detail = `${ignitions.length} ignition(s), largest ${worst.toFixed(1)} J`;
-        }
-      } else {
-        const inside = readings.filter((x) => inWindow(r.span, x.t, tA));
-        if (!inside.length) {
-          pass = r.span.afterAbort !== null && !fired;
-          detail = pass ? 'not applicable: no abort fired' : 'no readings in the time span';
-        } else {
-          const bad = inside.find((x) => (r.kind === 'compare' ? !OPS[r.op](x.values[r.signal], r.value) : r.kind === 'choked' ? !x.choked[r.edge] : x.burning !== r.want));
-          pass = !bad;
-          detail = bad ? `fails at t = ${bad.t.toFixed(3)} s${r.kind === 'compare' ? ` (${r.signal} reads ${(bad.values[r.signal] / UNIT[r.unit]).toPrecision(5)} ${r.unit})` : ''}` : `holds over ${inside.length} readings`;
-        }
-      }
-      return { id: c.id, expect: c.expect, source: c.source || '', pass, detail };
-    });
+    const ignitions = run.out.events.filter((e) => e.what === 'ignition');
+    const res = evaluateChecks(checks, readings, ignitions, fired);
     return {
       sequence: sequence.id,
       faults,
@@ -233,6 +203,44 @@ export function createSequenceRun(stand, sequence, { faults = [], seed = null, m
   }
 
   return { run, advance, readout: () => run.readout(), report, readings, get t() { return run.t; } };
+}
+
+/**
+ * A table's checks over a run: readings [{ t, values, choked, burning }] on the DAQ grid, the
+ * plant's ignition events, and the abort that fired (or null). Shared by the table driver and the
+ * SIL harness (physics/sil.js), so any sequencer is judged by the same code.
+ */
+export function evaluateChecks(checks, readings, ignitions, fired) {
+  const tA = fired?.t ?? null;
+  return checks.map((c) => {
+    const r = c.rule;
+    let pass = true;
+    let detail = '';
+    if (r.kind === 'no-abort') {
+      pass = !fired;
+      detail = fired ? `${fired.id} fired at ${fired.t.toFixed(3)} s` : 'no abort fired';
+    } else if (r.kind === 'ignition-energy') {
+      if (!ignitions.length) {
+        pass = false;
+        detail = 'no ignition happened';
+      } else {
+        const worst = Math.max(...ignitions.map((e) => e.unburnedEnergy));
+        pass = ignitions.every((e) => OPS[r.op](e.unburnedEnergy, r.value));
+        detail = `${ignitions.length} ignition(s), largest ${worst.toFixed(1)} J`;
+      }
+    } else {
+      const inside = readings.filter((x) => inWindow(r.span, x.t, tA));
+      if (!inside.length) {
+        pass = r.span.afterAbort !== null && !fired;
+        detail = pass ? 'not applicable: no abort fired' : 'no readings in the time span';
+      } else {
+        const bad = inside.find((x) => (r.kind === 'compare' ? !OPS[r.op](x.values[r.signal], r.value) : r.kind === 'choked' ? !x.choked[r.edge] : x.burning !== r.want));
+        pass = !bad;
+        detail = bad ? `fails at t = ${bad.t.toFixed(3)} s${r.kind === 'compare' ? ` (${r.signal} reads ${(bad.values[r.signal] / UNIT[r.unit]).toPrecision(5)} ${r.unit})` : ''}` : `holds over ${inside.length} readings`;
+      }
+    }
+    return { id: c.id, expect: c.expect, source: c.source || '', pass, detail };
+  });
 }
 
 /** Batch: play the whole table (to tEnd) and return { report, run }. */

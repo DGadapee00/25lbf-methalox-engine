@@ -44,6 +44,10 @@ jobs:
       # than publishing nothing.
       - run: npm test
 
+      # The SIL harness over its stdio protocol (Test_Stand/sil_protocol.md), with the reference
+      # sequencer in a child process.
+      - run: npm run sil-check
+
       - run: npm run build
 
       # Playwright is deliberately not a dependency (it is large, and only the smoke test wants it).
