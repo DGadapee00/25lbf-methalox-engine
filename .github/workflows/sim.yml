@@ -59,6 +59,9 @@ jobs:
       # The dev server is not what Pages publishes. Smoke the build that would go live.
       - run: node scripts/smoke.mjs --preview
 
+      # The Quest page, without a headset: desktop controls drive the same worker.
+      - run: node scripts/smoke-vr.mjs --preview
+
       # Every guide lesson, played through the built page.
       - run: node scripts/course-check.mjs
 

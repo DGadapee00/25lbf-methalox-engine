@@ -54,5 +54,11 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    rollupOptions: {
+      input: {
+        main: path.resolve(here, 'index.html'),
+        vr: path.resolve(here, 'vr.html'),
+      },
+    },
   },
 });
