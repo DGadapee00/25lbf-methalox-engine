@@ -55,6 +55,15 @@ export const RIG_FORWARD_M = HP_LENGTH_M;
 export const RIG_BELOW_EYE_M = HP_LENGTH_M / 5;
 
 /**
+ * Desktop orbit only. Two HP lengths back, and twice the headset's
+ * below-eye offset, so the bottle and the engine (each about one HP length
+ * off the manifold) fit a 60° window. The headset still uses RIG_FORWARD_M.
+ * Not a stand height.
+ */
+export const DESKTOP_BACK_M = 2 * RIG_FORWARD_M;
+export const DESKTOP_EYE_M = 2 * RIG_BELOW_EYE_M;
+
+/**
  * Chamber barrel printed in PROJECT_PLAN §2.2. The "~" is the plan's. The sim
  * node stays the components.json volume (~45 cm³); this outline does not
  * rescale it. A cylinder of these two figures is not 45 cm³, and it is not

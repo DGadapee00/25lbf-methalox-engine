@@ -13,7 +13,7 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RIG_BELOW_EYE_M, RIG_FORWARD_M, gn2Layout } from './scale.js';
+import { DESKTOP_BACK_M, DESKTOP_EYE_M, RIG_FORWARD_M, gn2Layout } from './scale.js';
 import { createVrSession } from './session.js';
 import { createStandView } from './view.js';
 import { createInteraction, placeInFront } from './interact.js';
@@ -34,7 +34,7 @@ renderer.xr.setFoveation(0);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, 0.02, layout.span + RIG_FORWARD_M * 8);
 const man = layout.stations.manifold;
-camera.position.set(man[0], RIG_BELOW_EYE_M, man[2] + RIG_FORWARD_M);
+camera.position.set(man[0], DESKTOP_EYE_M, man[2] + DESKTOP_BACK_M);
 camera.lookAt(man[0], 0, man[2]);
 
 const controls = new OrbitControls(camera, canvas);

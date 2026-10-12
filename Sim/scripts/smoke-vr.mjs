@@ -56,6 +56,7 @@ try {
   expect(audit.calls > 0 && audit.calls < 120, `draw calls stay small (${audit.calls})`);
   const badge = await page.textContent('#vr-badge');
   expect(badge && badge.includes('UNCALIBRATED'), 'the page badge says UNCALIBRATED');
+  await page.screenshot({ path: path.join(outDir, 'vr.png') });
 
   const picked = await page.evaluate(() => window.__vr.pickTag('HV-OX-01'));
   expect(picked === true, 'a ray in front of HV-OX-01 hits that valve');
@@ -108,8 +109,6 @@ try {
     return s.ready && s.t < 0.5 && x < 0.05;
   }, null, { timeout: 30000 });
   console.log('  PASS  reset returns to a shut isolation valve');
-
-  await page.screenshot({ path: path.join(outDir, 'vr.png') });
 } catch (err) {
   fails.push(err?.stack || String(err));
   console.error(err);

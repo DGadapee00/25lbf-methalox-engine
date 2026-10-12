@@ -49,9 +49,11 @@ separate page, not a rewrite of the desktop shell.
   series as desktop Operate, and UNCALIBRATED / PLACEHOLDER / issue #6 on the placard, the
   gauges and the page. Transducer text is the lagged, quantized reading. Tube colour is the
   true node pressure, on the same log ramp as the P&ID.
-- Comfort: the manifold starts one tube-length in front of you, slightly below eye level. You
-  are not walked anywhere. Optional snap turn (45°, or the right stick) and three "go to"
-  spots (bottle, valves, engine) move the stand around you.
+- Comfort: in the headset the manifold starts one tube-length in front of you, slightly below
+  eye level. You are not walked anywhere. Optional snap turn (45°, or the right stick) and
+  three "go to" spots (bottle, valves, engine) move the stand around you. The desktop window
+  starts two tube-lengths back so the bottle and the engine both fit; that distance is the
+  same viewing rig, not a stand height.
 - The page asks the session for 72 fps and turns fixed foveation off so the gauge text stays
   sharp. Both are requests. A Quest can refuse the frame rate.
 - No headset required. The bottom bar is the same actions. **Emulate Quest 3** installs IWER

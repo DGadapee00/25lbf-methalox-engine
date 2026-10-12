@@ -75,7 +75,7 @@ const unknown = cited.filter((t) => !allTags.has(t));
 ok(!unknown.length, `every tag the symbol key cites is on a stand (${unknown.join(', ') || 'clean'})`);
 
 console.log('VR layout');
-const { gn2Layout, TUBE_OD_M, HP_LENGTH_M, CHAMBER_DIAMETER_M, CHAMBER_BARREL_M } = await import('../src/vr/scale.js');
+const { gn2Layout, TUBE_OD_M, HP_LENGTH_M, CHAMBER_DIAMETER_M, CHAMBER_BARREL_M, DESKTOP_BACK_M } = await import('../src/vr/scale.js');
 const { components } = await import('../src/data/components.js');
 const { INCH } = await import('../src/physics/constants.js');
 const { ENGINE_PARTS } = await import('../src/data/tags.js');
@@ -85,6 +85,9 @@ const layout = gn2Layout(c);
 const gn2 = STANDS['gn2-coldflow']();
 ok(TUBE_OD_M === 0.25 * INCH, 'the drawn tube is the 1/4-in in the HP-line note');
 ok(HP_LENGTH_M === 1 && layout.runs.hp === 1, 'the drawn HP run is the note\'s about 1 m');
+ok(DESKTOP_BACK_M === 2 * HP_LENGTH_M, 'the desktop camera sits two HP lengths back');
+const manX = layout.stations.manifold[0];
+ok(Math.abs(layout.stations.bottle[0] - manX) < DESKTOP_BACK_M && Math.abs(layout.stations.engine[0] - manX) < DESKTOP_BACK_M, 'bottle and engine both sit inside that desktop distance of the manifold');
 ok(Math.abs(layout.runs.manifold / layout.runs.hp - c.manifold.V / c.hpline.V) < 1e-12, 'manifold length scales with its placeholder volume');
 ok(Math.abs(layout.runs.line / layout.runs.hp - c.line.V / c.hpline.V) < 1e-12, 'injector-line length scales with its placeholder volume');
 const sphereV = (4 / 3) * Math.PI * layout.bottle.radius ** 3;
