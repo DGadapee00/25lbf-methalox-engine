@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Meta Quest view of the GN2 cold-flow test stand. Uncalibrated. Not a hardware prediction." />
+    <title>Stand Sim — Quest</title>
+    <link rel="stylesheet" href="/src/styles/vr.css" />
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="vr-chrome">
+      <header>
+        <a class="back" href="./index.html">Desktop</a>
+        <strong>GN₂ cold flow</strong>
+        <span id="vr-badge">UNCALIBRATED</span>
+        <span id="vr-issue">PLACEHOLDER · issue #6</span>
+        <button type="button" id="vr-enter">Enter VR</button>
+        <button type="button" id="vr-emulate">Emulate Quest 3</button>
+      </header>
+      <p id="vr-status" role="status"></p>
+      <p id="vr-readout"></p>
+      <div id="vr-actions" aria-label="Desktop controls"></div>
+    </div>
+    <script type="module" src="/src/vr/main.js"></script>
+  </body>
+</html>

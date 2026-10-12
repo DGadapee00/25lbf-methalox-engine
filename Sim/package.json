@@ -13,6 +13,8 @@
     "test": "node scripts/check-headless.mjs && node src/physics/selftest.js && node scripts/shell-check.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:prod": "npm run build && node scripts/smoke.mjs --preview",
+    "smoke:vr": "node scripts/smoke-vr.mjs",
+    "smoke:vr:prod": "npm run build && node scripts/smoke-vr.mjs --preview",
     "live": "node scripts/live.mjs",
     "sweep": "node scripts/sweep.mjs",
     "predict": "node scripts/predict.mjs",
@@ -21,6 +23,8 @@
     "course-check": "npm run build && node scripts/course-check.mjs"
   },
   "dependencies": {
+    "@iwer/devui": "^2.5.0",
+    "iwer": "^2.5.0",
     "katex": "^0.16.47",
     "three": "^0.172.0"
   },

@@ -1,0 +1,52 @@
+/* Quest page. The instruments that matter in the headset are in the 3D scene.
+   This bar is the desktop fallback: it is not composited into an immersive session. */
+:root {
+  --bg: #0b0c0e;
+  --panel: rgba(20, 22, 26, 0.92);
+  --line: #2a2d33;
+  --text: #ece6e2;
+  --muted: #9a9591;
+  --warn: #f0ac5f;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 var(--font); overflow: hidden; }
+#c { display: block; width: 100%; height: 100%; touch-action: none; }
+#vr-chrome {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 42vh;
+  overflow: auto;
+  padding: 10px 12px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+header strong { font-size: 15px; }
+a.back { color: var(--text); }
+#vr-badge, #vr-issue {
+  font: 11px var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+button, a.back {
+  font: inherit;
+  color: inherit;
+  background: #1c1f24;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 10px;
+  cursor: pointer;
+  text-decoration: none;
+}
+#vr-enter { border-color: var(--text); }
+#vr-status, #vr-readout { margin: 8px 0 0; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+#vr-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#vr-actions button { font-size: 12px; }

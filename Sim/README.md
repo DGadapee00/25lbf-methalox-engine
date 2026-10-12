@@ -50,6 +50,7 @@ npm test           # headless guard + physics self-test + shell checks
 npm run build      # dist/, stamped with /version.json
 npm run smoke      # every lab in headless Chromium, dev server, against scripts/baseline/values.json
 npm run smoke:prod # same, against `vite build` + preview — run this before merging to main
+npm run smoke:vr   # the Quest page, desktop fallback, no headset
 npm run live       # which commit the deployed site was built from
 npm run predict -- gn2-coldflow            # register a prediction (writes predictions/<date>-…json)
 npm run validate -- --prediction <file> --daq <log.csv> --test <id> [--fit INJ-OX-01 --write]
@@ -58,6 +59,11 @@ npm run sil-check [-- <command> <args…>]       # a sequencer over stand-sil-v1
 npm run course-check                           # play every guide lesson through the built page
 ```
 
+The Quest page is [vr.html](vr.html) (Enter VR on the desktop page). It operates the GN₂
+cold-flow stand in WebXR and drives the same physics worker. Without a headset, use the on-screen
+controls or **Emulate Quest 3**. What is in this slice, and what is deliberately not, is
+[docs/vr-plan.md](docs/vr-plan.md). `npm run smoke:vr:prod` runs that check against the production build.
+
 The smoke test borrows Playwright from `$PLAYWRIGHT_PATH`, this folder's `node_modules`, or the
 global install; it is not a dependency.
 
@@ -65,11 +71,12 @@ global install; it is not a dependency.
 
 ```
 Sim/
-├── index.html, vite.config.js, package.json
+├── index.html, vr.html, vite.config.js, package.json
 ├── src/
 │   ├── main.js            # app shell: router, lab mount, panels, render loop
 │   ├── labs/              # defineLab() contract, loader; blowdown, orifice, regulator, valve timing, injector, chamber fill, stand, test panel, choke margin
 │   ├── engine/            # router (#/lab/<id>, #/stand/<id>); physics Web Worker and its client
+│   ├── vr/                # Quest page: WebXR view of the GN₂ stand, same worker (docs/vr-plan.md)
 │   ├── scene/             # three.js: renderer, palette, P&ID view (pid.js), shared symbol geometry (symbols.js)
 │   ├── ui/                # KaTeX helpers, units formatting, plots, predict-first cards, guide, inspector, glossary + symbol key, faults
 │   ├── data/              # catalog, units registry, S-2 tags, component loader, sequence loader, stands/, course, glossary, training table
